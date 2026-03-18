@@ -1,199 +1,170 @@
-Preflight
+# OctoClaw Desktop
 
-Validates OpenAI API key is pasted — fails fast if still placeholder
+A one-click desktop installer and dashboard for [OpenClaw](https://openclaw.ai). Built with Electron + React.
 
-Step 1 — Install
+---
 
-Checks if openclaw already installed
-If not → curl install.sh | bash -s -- --no-onboard — installs binary only, skips interactive onboard completely
+## How to Run
 
-Step 2 — Directories
+**Prerequisites:** Node.js, pnpm
 
-Creates ~/.openclaw/workspace
-Creates ~/.openclaw/agents/main/agent
+```bash
+pnpm install
+pnpm run dev        # development
+pnpm run build:mac  # build .dmg
+```
 
-Step 3 — API Key
+---
 
-Writes OPENAI_API_KEY to ~/.openclaw/.env with chmod 600
+## Architecture
 
-Step 4 — Gateway Token
+```
+openclaw-desktop/
+├── electron/
+│   ├── main.js       — main process, all IPC handlers, child process spawning
+│   └── preload.js    — secure context bridge (renderer ↔ main)
+├── src/
+│   ├── App.jsx       — root component, wizard state machine, startup check
+│   ├── Dashboard.jsx — dashboard shell with sidebar nav
+│   ├── steps/        — Welcome, ProviderModel, ApiKey, Installing
+│   └── dashboard/    — Chat, ConnectApps, Skills, Balance
+└── assets/
+    └── openclaw-install.sh — parameterized bash installer
+```
 
-Auto-generates a 256-bit token via openssl rand -hex 32
-Saves to .env as OPENCLAW_GATEWAY_TOKEN
+---
 
-Step 5 — Config
+## Complete Flow
 
-Writes ~/.openclaw/openclaw.json directly with:
+### App Startup
 
-gateway.mode: local ← fixes the gateway start blocked error
-gateway.bind: loopback ← security
-gateway.auth.token ← generated token
-agents.defaults.model: openai/gpt-4o
-tools: {} ← fixes the non-interactive tools bug
+Every time the app opens, before rendering anything, `App.jsx` calls `checkInstalled()` via IPC. The main process checks whether `~/.openclaw/openclaw.json` and `~/.openclaw/.env` exist.
 
+- **Not found** → wizard starts at the Welcome screen
+- **Found** → skip wizard entirely, resize window to 1100×720, go straight to Dashboard
 
+---
 
-Step 6 — Auth Profile
+### First Launch — Wizard (800×620 window)
 
-Writes OpenAI API key into auth-profiles.json
+Progress bar advances through 4 steps:
 
-Step 7 — Daemon
+**Step 1 — Welcome**
+Landing screen with a brief intro. User clicks Continue.
 
-openclaw gateway install — registers as LaunchAgent (macOS) / systemd (Linux)
+**Step 2 — Provider & Model**
+User picks an AI provider (OpenAI, Anthropic, Google, Mistral, Groq, Cohere, Together, OpenRouter, Ollama) and selects a model. Selection is stored in React state.
 
-Step 8 — Start
+**Step 3 — API Key**
+User pastes their API key. Skipped entirely for Ollama since no key is needed.
 
-openclaw gateway restart/start
-Waits 3 seconds for it to come up
+**Step 4 — Installing**
+User clicks Install. `Installing.jsx` calls `window.electronAPI.runInstall({ provider, model, apiKey })` which sends an IPC message to the main process.
 
-Step 9 — Verify
+The main process:
+1. Resolves the script path — `assets/openclaw-install.sh` in dev, `resourcesPath/openclaw-install.sh` in production
+2. Copies the script to `/tmp/octoclaw-install.sh` (avoids read-only DMG filesystem errors)
+3. Makes it executable with `chmod 755`
+4. Builds a rich `PATH` environment — includes Homebrew, NVM (all installed versions scanned), npm global, and the existing `process.env.PATH` — so the `openclaw` binary is always found regardless of install method
+5. Spawns `/bin/bash /tmp/octoclaw-install.sh` with `OPENCLAW_API_KEY`, `OPENCLAW_PROVIDER`, `OPENCLAW_MODEL` in env
+6. Streams every stdout/stderr line back to the renderer via `install-log` IPC events
+7. On exit code 0, sends `install-done { success: true }`
 
-openclaw gateway status — confirms running + RPC ok
-yes | openclaw doctor — auto-accepts all fix prompts
+**What the bash script does (9 steps):**
 
-Done — prints:
+```
+Preflight     → validate API key is set (skip for Ollama)
+Step 1        → check if openclaw CLI exists
+                if not: curl openclaw.ai/install.sh | bash --no-onboard
+                         or: npm install -g openclaw (fallback)
+PATH fix      → append openclaw bin to ~/.zshrc / ~/.bash_profile (idempotent)
+Step 2        → mkdir ~/.openclaw/workspace
+                mkdir ~/.openclaw/agents/main/agent
+Step 3        → write ~/.openclaw/.env with OPENCLAW_API_KEY, chmod 600
+Step 4        → generate 256-bit gateway token via openssl rand -hex 32
+                append OPENCLAW_GATEWAY_TOKEN to .env
+Step 5        → write ~/.openclaw/openclaw.json
+                (model, gateway port 18789, loopback bind, token auth)
+Step 6        → openclaw gateway install
+                registers as LaunchAgent (macOS) / systemd (Linux)
+Step 7        → write auth-profiles.json to 3 locations
+                MUST be after gateway install (install can wipe the file)
+                MUST be before gateway start (gateway reads auth on startup)
+                Locations: ~/.openclaw/auth-profiles.json
+                           ~/.openclaw/agents/main/auth-profiles.json
+                           ~/.openclaw/agents/main/agent/auth-profiles.json
+Step 8        → openclaw gateway stop → sleep 1 → openclaw gateway start
+                clean restart so gateway reads the fresh auth file
+                sleep 3 to let it come up
+Step 9        → openclaw gateway status (verify running)
+                openclaw doctor (verify config, warn only)
+```
 
-Dashboard URL with token embedded → open in browser = web UI ready
-Telegram add instructions for later
-Useful commands
+On success, `Installing.jsx` receives `install-done { success: true }`, the window resizes to 1100×720, and the app transitions to the Dashboard.
 
+On failure, the user is sent back to the API Key step to retry.
 
-------------------------
+---
 
- What was built:
+### Subsequent Launches — Direct to Dashboard
 
-  openclaw-desktop/
-  ├── electron/
-  │   ├── main.js        ← spawns the .sh script with env vars, streams logs via IPC
-  │   └── preload.js     ← secure context bridge (renderer ↔ main)
-  ├── src/
-  │   ├── App.jsx        ← wizard state machine (5 steps)
-  │   ├── index.css      ← full dark terminal theme
-  │   └── steps/
-  │       ├── Welcome.jsx       ← ASCII logo + feature list
-  │       ├── ProviderModel.jsx ← OpenAI / Anthropic / OpenRouter cards + model picker
-  │       ├── ApiKey.jsx        ← password input + link to get key + security note
-  │       ├── Installing.jsx    ← live log stream with color-coded lines
-  │       └── Done.jsx          ← summary + "Open Dashboard" button
-  ├── assets/
-  │   └── openclaw-install.sh   ← parameterized (reads OPENCLAW_API_KEY, OPENCLAW_MODEL, OPENCLAW_PROVIDER from env)
-  └── package.json              ← electron-builder config for .dmg output
+`checkInstalled()` finds the config files, reads `agents.defaults.model.primary` from `openclaw.json` (format: `"openai/gpt-4o"`), parses out provider and model, restores them into state, and jumps to the Dashboard. The wizard is never shown.
 
-  To run in dev mode:
-  npm run dev
+---
 
-  To build the .dmg:
-  npm run build:mac
+### Dashboard
 
-  Two things you'll want to do next:
-  1. Add an app icon — put icon.icns in assets/ (electron-builder needs it for the .dmg)
-  2. Revoke the old hardcoded API key from openclaw.sh — it was exposed in that file
+A sidebar + content layout with four tabs.
 
+**Chat**
 
+When the Chat tab mounts, it goes through a startup sequence:
 
+```
+1. readGatewayToken() — reads OPENCLAW_GATEWAY_TOKEN from ~/.openclaw/.env
 
-Complete Flow — Start to Finish
+2. ensureGateway():
+   a. Probe http://127.0.0.1:18789 — already up? return immediately
+   b. Not up → spawn: openclaw gateway start (detached)
+      wait 1.5s for daemon to register
+   c. Poll every 600ms up to 5 attempts (3s)
+      → up? done
+   d. Still not up → gateway service probably not installed
+      → openclaw gateway install
+      → repairAuthProfiles() — rewrites auth-profiles.json immediately
+        (gateway install can wipe the auth file)
+      → openclaw gateway start (detached)
+      → poll every 800ms up to 15 attempts (12s)
+   e. Binary not found (ENOENT) → return { error: 'BINARY_NOT_FOUND' } immediately
 
-  Phase 1 — Wizard (800×620 window)
+3. Set chatUrl = http://127.0.0.1:18789/?token=<token>
 
-  User opens OctoClaw.app
-         ↓
-  Electron main.js → createWindow() → loads dist/index.html
-         ↓
-  React App.jsx renders → step = 'welcome'
-         ↓
-  [Welcome] → [Provider & Model] → [API Key] → [Installing]
-                                      ↑ skipped for Ollama
+4. Render <webview src={chatUrl}>
 
-  Phase 2 — Install (bash script via IPC)
+5. On did-finish-load → executeJavaScript to inject token:
+   - writes token to localStorage under 4 possible key names
+   - finds any input with "token" or "gateway" in placeholder/id/name
+   - sets its value using the native React setter (so React state updates)
+   - dispatches input + change events
+   - after 300ms, clicks the Connect button
+```
 
-  User clicks "Install OctoClaw" in ApiKey step
-         ↓
-  Installing.jsx calls window.electronAPI.runInstall({ provider, model, apiKey })
-         ↓
-  preload.js bridges → ipcRenderer.send('run-install', config)
-         ↓
-  main.js ipcMain.on('run-install') receives it:
-    1. Resolves script path (dev: assets/ | prod: resourcesPath/)
-    2. Copies script → /tmp/octoclaw-install.sh   ← avoids read-only DMG crash
-    3. chmod 755 on /tmp copy
-    4. Builds env: OPENCLAW_API_KEY, OPENCLAW_PROVIDER, OPENCLAW_MODEL,
-                   PATH (with dynamic Homebrew prefix), HOME, TERM
-    5. spawn('/bin/bash', [tmpScript], { env })
-    6. Streams stdout/stderr → 'install-log' IPC events → Installing.jsx log box
-    7. On exit code 0 → 'install-done' { success: true }
+The Chat tab shows a spinner with status text during steps 1–2, renders the webview once ready, and shows an error + Retry button if the gateway fails to start.
 
-  Phase 3 — bash script execution (9 steps)
+**Connect Apps**
 
-  INIT: detect BREW_PREFIX (/opt/homebrew or /usr/local), read env vars
-    ↓
-  PREFLIGHT: validate API_KEY (skip check for ollama)
-    ↓
-  STEP 1: Check if openclaw binary exists
-          → if not: curl openclaw.ai/install.sh | bash --no-onboard
-          → PATH updated with BREW_PREFIX + .local/bin
-    ↓
-  PATH FIX: write 'export PATH=...' to ~/.zshrc / ~/.bash_profile (idempotent)
-             export into current session
-    ↓
-  STEP 2: mkdir -p ~/.openclaw/workspace
-          mkdir -p ~/.openclaw/agents/main/agent
-    ↓
-  STEP 3: write ~/.openclaw/.env
-          OPENCLAW_API_KEY=<key>
-          chmod 600
-    ↓
-  STEP 4: generate GATEWAY_TOKEN via openssl rand -hex 32
-          append OPENCLAW_GATEWAY_TOKEN=<token> to .env
-    ↓
-  STEP 5: write ~/.openclaw/openclaw.json
-          model.primary = "provider/model"
-          gateway: local, port 18789, loopback, token auth
-    ↓
-  STEP 6: openclaw gateway install  ← may wipe agent dirs
-    ↓
-  STEP 7: write auth-profiles.json to 3 locations (BEFORE gateway starts)
-          ~/.openclaw/auth-profiles.json
-          ~/.openclaw/agents/main/auth-profiles.json
-          ~/.openclaw/agents/main/agent/auth-profiles.json
-          chmod 600 each
-    ↓
-  STEP 8: openclaw gateway stop → sleep 1 → openclaw gateway start
-          (clean restart so gateway reads fresh auth on startup)
-          sleep 3
-    ↓
-  STEP 9: openclaw gateway status (warn only)
-          openclaw doctor (warn only)
-    ↓
-  Print summary: Provider / Model / Gateway URL / Dashboard URL with token
+User expands the Telegram card, pastes a bot token from `@BotFather`, and clicks Save. The token is written into `integrations.telegram` in `~/.openclaw/openclaw.json` via IPC.
 
-  Phase 4 — Dashboard (window resized to 1100×720)
+**Skills**
 
-  Installing.jsx receives 'install-done' { success: true }
-         ↓
-  App.jsx: window.electronAPI.resizeWindow(1100, 720)
-           → main.js: setResizable(true), setSize(1100,720), center()
-         ↓
-  step = 'dashboard' → Dashboard.jsx renders
-         ↓
-  Sidebar: logo (base64 webp), nav items, footer with provider/model + RESET
-         ↓
-  ┌── CHAT ──────────────────────────────────────────────────────┐
-  │  Chat.jsx:                                                   │
-  │  1. readGatewayToken() IPC → reads ~/.openclaw/.env          │
-  │  2. builds url: http://127.0.0.1:18789/?token=<token>        │
-  │  3. renders <webview ref={webviewRef} src={url}>             │
-  │  4. on did-finish-load → executeJavaScript to inject token   │
-  │     into Gateway Token input field → clicks Connect button   │
-  └──────────────────────────────────────────────────────────────┘
-  ┌── CONNECT APPS ──────────────────────────────────────────────┐
-  │  Telegram card → enter bot token → saveTelegramConfig IPC    │
-  │  → writes integrations.telegram to openclaw.json             │
-  └──────────────────────────────────────────────────────────────┘
-  ┌── SKILLS ────────────────────────────────────────────────────┐
-  │  6 skill toggles → saveSkillsConfig IPC                      │
-  │  → writes skills map to openclaw.json                        │
-  └──────────────────────────────────────────────────────────────┘
-  ┌── BALANCE ───────────────────────────────────────────────────┐
-  │  Coming soon placeholder                                     │
-  └──────────────────────────────────────────────────────────────┘
+Six agent capability toggles (web search, shell, file manager, code runner, browser automation, long-term memory). Preferences are saved to `~/.openclaw/octoclaw-prefs.json` — not to `openclaw.json`, because openclaw rejects unknown skill keys.
+
+**Balance**
+
+Coming soon placeholder.
+
+---
+
+### Reset
+
+The RESET button in the sidebar footer sends the user back to the Welcome step. Config files on disk are not deleted — re-running the wizard will overwrite them.
