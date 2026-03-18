@@ -48,6 +48,7 @@ export default function Chat() {
 
     const inject = () => {
       const tok = tokenRef.current
+
       if (!tok) return
       webview.executeJavaScript(`
         (function () {

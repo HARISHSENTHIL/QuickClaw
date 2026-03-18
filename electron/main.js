@@ -323,14 +323,36 @@ ipcMain.handle('read-config', async () => {
 })
 
 // ── IPC: Save Telegram bot config into ~/.openclaw/openclaw.json ───────────
+// Correct key is channels.telegram (not integrations.telegram)
+// Matches: openclaw config set channels.telegram.botToken <token>
+//          openclaw config set channels.telegram.dmPolicy open
+// Gateway must restart after for the bot to activate.
 ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
   try {
     const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
     let config = {}
     try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
-    config.integrations = config.integrations || {}
-    config.integrations.telegram = { enabled: true, botToken }
+
+    // Write to the correct openclaw config key
+    // dmPolicy "open" requires allowFrom: ["*"] — without it config is invalid
+    // and openclaw silently never starts the Telegram poller
+    config.channels = config.channels || {}
+    config.channels.telegram = {
+      botToken,
+      dmPolicy: 'open',
+      allowFrom: ['*'],
+    }
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+
+    // Restart gateway so it picks up the new Telegram config
+    const env = buildEnv()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      child.on('close', resolve)
+      child.on('error', resolve)
+      setTimeout(resolve, 6000)
+    })
+
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
