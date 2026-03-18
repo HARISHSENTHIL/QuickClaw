@@ -1,0 +1,47 @@
+{
+  "name": "octoclaw-desktop",
+  "version": "1.0.0",
+  "description": "OctoClaw Desktop Installer",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "vite build && electron-builder",
+    "build:mac": "vite build && electron-builder --mac",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3",
+    "vite": "^5.1.4",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "ai.octoclaw.desktop",
+    "productName": "OctoClaw",
+    "mac": {
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] }
+      ]
+    },
+    "dmg": {
+      "title": "OctoClaw Installer",
+      "window": { "width": 540, "height": 380 }
+    },
+    "extraResources": [
+      { "from": "assets/openclaw-install.sh", "to": "openclaw-install.sh" }
+    ],
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "assets/**/*"
+    ]
+  }
+}
