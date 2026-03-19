@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // Telegram bot token format: numeric_id:35-char-alphanumeric
 // e.g. 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ123456789
@@ -10,6 +10,14 @@ export default function ConnectApps() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
+
+  // On mount: check openclaw.json — if Telegram is already configured show CONNECTED
+  // This persists the connected state across tab navigation (component remounts)
+  useEffect(() => {
+    window.electronAPI?.readConfig().then((config) => {
+      if (config?.channels?.telegram?.botToken) setSaved(true)
+    }).catch(() => {})
+  }, [])
 
   const isValidToken = TELEGRAM_TOKEN_RE.test(botToken.trim())
 

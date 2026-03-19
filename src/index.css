@@ -1037,6 +1037,14 @@ code {
 .dash-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ── Skills ──────────────────────────────────────────────────────────────── */
+.skills-section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #444;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+
 .skills-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1140,3 +1148,198 @@ code {
 }
 
 .balance-sub { font-size: 13px; color: #333; max-width: 320px; line-height: 1.5; }
+
+/* ── Integration cards (Skills page — Binance, CoinGecko, etc.) ──────────── */
+.integration-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 700px;
+}
+
+.integration-card {
+  background: #141414;
+  border: 1.5px solid #1e1e1e;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.integration-card-open { border-color: #2a2a2a; }
+
+.integration-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.integration-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.integration-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.integration-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.integration-desc { font-size: 12px; color: #555; }
+
+.integration-connect-btn {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #E84040;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.integration-connect-btn:hover { opacity: 0.75; }
+
+.integration-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #10D981;
+  background: rgba(16,217,129,0.08);
+  border: 1px solid rgba(16,217,129,0.2);
+  border-radius: 6px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.integration-form {
+  padding: 16px 18px 18px;
+  border-top: 1px solid #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.integration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.integration-field-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.integration-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.integration-field-input { width: 100%; }
+.integration-field-input.input-error { border-color: var(--red) !important; }
+
+.integration-reveal-btn {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  line-height: 1;
+  color: #444;
+  transition: color 0.12s;
+}
+
+.integration-reveal-btn:hover { color: #888; }
+
+.integration-field-error {
+  font-size: 11px;
+  color: var(--red);
+}
+
+/* ── Module selection chips ──────────────────────────────────────────────── */
+.integration-modules-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #444;
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.integration-modules-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.module-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  border: 1.5px solid #222;
+  background: #0e0e0e;
+  color: #555;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+}
+
+.module-chip:hover:not(:disabled) {
+  border-color: #333;
+  color: #aaa;
+}
+
+.module-chip-on {
+  border-color: rgba(240,185,11,0.4);
+  background: rgba(240,185,11,0.07);
+  color: #ccc;
+}
+
+.module-chip:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.module-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #333;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+
+.module-chip-dot-on { background: #F0B90B; }
+
+.module-chip-tick {
+  color: #10D981;
+  font-size: 10px;
+}

@@ -18,4 +18,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readConfig: () => ipcRenderer.invoke('read-config'),
   checkInstalled: () => ipcRenderer.invoke('check-installed'),
   ensureGateway: () => ipcRenderer.invoke('ensure-gateway'),
+  installIntegrationSkill: (data) => ipcRenderer.invoke('install-integration-skill', data),
+  readIntegrationSkills: () => ipcRenderer.invoke('read-integration-skills'),
 })

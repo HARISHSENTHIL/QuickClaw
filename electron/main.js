@@ -4,6 +4,7 @@ const { spawn } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const http = require('http')
+const https = require('https')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -277,6 +278,11 @@ ipcMain.handle('ensure-gateway', async () => {
     setTimeout(() => resolve(null), detach ? 2000 : 6000)
   })
 
+  // Always stop any existing instance before starting — prevents two instances
+  // running simultaneously which causes Telegram 409 conflict loop.
+  await run(['gateway', 'stop'])
+  await new Promise((r) => setTimeout(r, 2000)) // let the process fully die
+
   // Step 1: try `openclaw gateway start`
   const startErr = await run(['gateway', 'start'], true)
 
@@ -288,10 +294,11 @@ ipcMain.handle('ensure-gateway', async () => {
   // Quick probe — if it came up, great
   if (await pollGateway(5, 600)) return { success: true }
 
-  // Step 2: service probably not installed (`openclaw gateway status` said so)
-  // Run `install` (registers LaunchAgent / systemd), repair auth (install can wipe it), then start
+  // Step 2: service probably not installed — install LaunchAgent, repair auth, then start
+  await run(['gateway', 'stop'])                // kill any partial start from step 1
+  await new Promise((r) => setTimeout(r, 1500))
   await run(['gateway', 'install'])
-  repairAuthProfiles()   // gateway install can wipe auth-profiles.json — rewrite it immediately
+  repairAuthProfiles()   // gateway install can wipe auth-profiles.json — rewrite immediately
   await run(['gateway', 'start'], true)
 
   // Final poll — up to ~12 s
@@ -352,6 +359,7 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
       child.on('error', resolve)
       setTimeout(resolve, 6000)
     })
+    repairAuthProfiles()
 
     return { success: true }
   } catch (err) {
@@ -372,5 +380,159 @@ ipcMain.handle('save-skills-config', async (_, skills) => {
     return { success: true }
   } catch (err) {
     return { success: false, error: err.message }
+  }
+})
+
+// ── Helper: download a URL following redirects (up to maxRedirects hops) ──
+// Node's built-in http/https.get does NOT follow redirects automatically.
+// GitHub raw URLs often issue a 301/302 before serving the actual content.
+function downloadUrl(url, maxRedirects = 5, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    if (maxRedirects < 0) return reject(new Error('Too many redirects'))
+    const mod = url.startsWith('https') ? https : http
+    const req = mod.get(url, { timeout: timeoutMs }, (res) => {
+      // Follow 3xx redirects
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+        res.resume() // drain so socket can be reused
+        const next = res.headers.location.startsWith('http')
+          ? res.headers.location
+          : new URL(res.headers.location, url).href
+        return downloadUrl(next, maxRedirects - 1, timeoutMs).then(resolve, reject)
+      }
+      if (res.statusCode !== 200) {
+        res.resume()
+        return reject(new Error(`HTTP ${res.statusCode} from ${url}`))
+      }
+      let data = ''
+      res.on('data', (chunk) => { data += chunk })
+      res.on('end', () => resolve(data))
+      res.on('error', reject)
+    })
+    req.on('error', reject)
+    req.on('timeout', () => { req.destroy(); reject(new Error('Download timed out')) })
+  })
+}
+
+// ── IPC: Install integration skills from bundled assets ───────────────────
+// Skill files live in assets/skills/ inside app.asar.
+// app.getAppPath() + Electron's transparent asar fs lets us read them directly
+// in both dev (project root) and prod (inside .app bundle).
+//
+// Each skill is written as a proper folder into <workspace>/skills/<skillFolder>/
+//   SKILL.md    ← official content from binance-skills-hub
+//   _meta.json  ← generated, marks the skill as installed (openclaw reads this)
+//
+// Flow: read from asar → write folder → upsert .env → gateway restart
+ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
+  try {
+    const home = os.homedir()
+    const env  = buildEnv()
+
+    // Resolve workspace path from openclaw.json
+    let workspace = path.join(home, '.openclaw', 'workspace')
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
+      workspace = cfg?.agents?.defaults?.workspace || workspace
+    } catch {}
+
+    const skillsDir = path.join(workspace, 'skills')
+    fs.mkdirSync(skillsDir, { recursive: true })
+
+    // Base path for bundled assets — works in dev AND inside app.asar in prod
+    const appRoot = app.getAppPath()
+
+    // 1. For each module: read SKILL.md from bundle → write skill folder
+    for (const mod of modules) {
+      const assetPath = path.join(appRoot, 'assets', 'skills', mod.assetFile)
+      const content   = fs.readFileSync(assetPath, 'utf8')  // Electron fs reads asar transparently
+
+      const skillDir = path.join(skillsDir, mod.skillFolder)
+      fs.mkdirSync(skillDir, { recursive: true })
+
+      fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content, 'utf8')
+      fs.writeFileSync(path.join(skillDir, '_meta.json'), JSON.stringify({
+        slug:        mod.skillFolder,
+        version:     '1.0.2',
+        installedAt: Date.now(),
+        source:      'binance-skills-hub',
+      }, null, 2))
+    }
+
+    // 2. Upsert env vars in ~/.openclaw/.env
+    const envPath = path.join(home, '.openclaw', '.env')
+    let envContent = ''
+    try { envContent = fs.readFileSync(envPath, 'utf8') } catch {}
+    for (const [key, value] of Object.entries(envVars)) {
+      const re = new RegExp(`^${key}=.*$`, 'm')
+      if (re.test(envContent)) {
+        envContent = envContent.replace(re, `${key}=${value}`)
+      } else {
+        envContent = envContent.trimEnd() + `\n${key}=${value}\n`
+      }
+    }
+    fs.writeFileSync(envPath, envContent, 'utf8')
+    fs.chmodSync(envPath, 0o600)
+
+    // 3. Write credentials to TOOLS.md in the workspace root
+    // The Binance SKILL.md reads from this file automatically on every session start.
+    // Format is defined by the SKILL.md "TOOLS.md Structure" section.
+    // This means the agent knows the keys without asking the user each time.
+    if (envVars.BINANCE_API_KEY && envVars.BINANCE_API_SECRET) {
+      const toolsPath = path.join(workspace, 'TOOLS.md')
+      let toolsContent = ''
+      try { toolsContent = fs.readFileSync(toolsPath, 'utf8') } catch {}
+
+      const binanceSection = `## Binance Accounts\n\n### main\n- API Key: ${envVars.BINANCE_API_KEY}\n- Secret: ${envVars.BINANCE_API_SECRET}\n- Testnet: false\n- Description: Primary trading account\n`
+
+      if (toolsContent.includes('## Binance Accounts')) {
+        // Replace existing section — from "## Binance Accounts" to next "##" or end of file
+        toolsContent = toolsContent.replace(
+          /## Binance Accounts[\s\S]*?(?=\n## |\n*$)/,
+          binanceSection
+        )
+      } else {
+        // Append new section
+        toolsContent = toolsContent.trimEnd() + '\n\n' + binanceSection
+      }
+
+      fs.writeFileSync(toolsPath, toolsContent, 'utf8')
+      fs.chmodSync(toolsPath, 0o600)
+    }
+
+    // Skills, env vars and TOOLS.md written — no gateway restart needed here.
+    // Restarting would kill any active Telegram polling session (409 conflict).
+    // The gateway picks up new skills on its next natural start (e.g. Chat tab
+    // calls ensureGateway, or the user relaunches the app).
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// ── IPC: Read which integration skills are installed ──────────────────────
+// Checks <workspace>/skills/ folders to know which slugs are present.
+ipcMain.handle('read-integration-skills', async () => {
+  try {
+    const home = os.homedir()
+    let workspace = path.join(home, '.openclaw', 'workspace')
+    try {
+      const config = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
+      workspace = config?.agents?.defaults?.workspace || workspace
+    } catch {}
+
+    const skillsDir = path.join(workspace, 'skills')
+    if (!fs.existsSync(skillsDir)) return {}
+
+    const installed = {}
+    for (const entry of fs.readdirSync(skillsDir)) {
+      const metaPath = path.join(skillsDir, entry, '_meta.json')
+      if (fs.existsSync(metaPath)) {
+        installed[entry] = true  // key = clawhub slug
+      }
+    }
+    return installed
+  } catch {
+    return {}
   }
 })
