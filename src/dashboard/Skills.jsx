@@ -10,14 +10,6 @@ const CAPABILITY_SKILLS = [
   { id: 'memory',       label: 'Long-term Memory',   desc: 'Persist knowledge across sessions',         icon: '🧠', enabled: true  },
 ]
 
-// ── Integration registry ──────────────────────────────────────────────────
-// Each entry has:
-//   id, label, desc, Icon, accentColor
-//   fields[]        — credential fields shown to user
-//   buildEnvVars()  — maps field values → env vars
-//   modules[]       — individual SKILL.md files to install
-//     { id, label, bundledSkillFile, skillFile, skillKey, defaultOn }
-//
 // To add a new exchange: append an entry here + drop SKILL.md into assets/skills/
 const INTEGRATION_SKILLS = [
   {
@@ -48,10 +40,8 @@ const INTEGRATION_SKILLS = [
       BINANCE_API_KEY:    vals.apiKey.trim(),
       BINANCE_API_SECRET: vals.secretKey.trim(),
     }),
-    // All 12 official skills from github.com/binance/binance-skills-hub
-    // assetFile   = path inside assets/skills/ (bundled in app.asar)
-    // skillFolder = destination folder name under <workspace>/skills/
     // Official skills from github.com/binance/binance-skills-hub
+    // assetFile = path inside assets/skills/, skillFolder = dest under <workspace>/skills/
     modules: [
       { id: 'spot',                             label: 'Spot Trading',         assetFile: 'binance/spot.md',                                 skillFolder: 'binance-spot',                    defaultOn: true },
       { id: 'alpha',                            label: 'Alpha',                assetFile: 'binance/alpha.md',                                skillFolder: 'binance-alpha',                   defaultOn: true },
@@ -67,26 +57,54 @@ const INTEGRATION_SKILLS = [
       { id: 'square-post',                      label: 'Square Post',          assetFile: 'binance/square-post.md',                          skillFolder: 'binance-square-post',             defaultOn: true },
     ],
   },
-  // ── Add future integrations below ─────────────────────────────────────
-  // {
-  //   id: 'coingecko', label: 'CoinGecko', ...
-  //   modules: [{ id: 'pro', label: 'Pro API', bundledSkillFile: 'coingecko/pro.md', ... }],
-  // },
+  {
+    id: 'coingecko',
+    label: 'CoinGecko',
+    desc: 'Crypto prices, market data, on-chain analytics',
+    Icon: CoinGeckoIcon,
+    accentColor: '#8DC63F',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API Key (optional)',
+        placeholder: 'Demo or Pro key — leave blank for keyless (10 req/min)',
+        secret: false,
+        validate: (v) => v.trim().length === 0 || v.trim().length >= 10,
+        errorMsg: 'Key looks too short',
+      },
+    ],
+    buildEnvVars: (vals) => ({ COINGECKO_API_KEY: vals.apiKey.trim() }),
+    modules: [
+      { id: 'core',                  label: 'Core',                assetFile: 'coingecko/core.md',                  skillFolder: 'coingecko-core',                  defaultOn: true  },
+      { id: 'coins',                 label: 'Coins',               assetFile: 'coingecko/coins.md',                 skillFolder: 'coingecko-coins',                 defaultOn: true  },
+      { id: 'global',                label: 'Global Market',       assetFile: 'coingecko/global.md',                skillFolder: 'coingecko-global',                defaultOn: true  },
+      { id: 'categories',            label: 'Categories',          assetFile: 'coingecko/categories.md',            skillFolder: 'coingecko-categories',            defaultOn: true  },
+      { id: 'exchanges',             label: 'Exchanges',           assetFile: 'coingecko/exchanges.md',             skillFolder: 'coingecko-exchanges',             defaultOn: true  },
+      { id: 'coin-history',          label: 'Coin History',        assetFile: 'coingecko/coin-history.md',          skillFolder: 'coingecko-coin-history',          defaultOn: true  },
+      { id: 'coin-supply',           label: 'Coin Supply',         assetFile: 'coingecko/coin-supply.md',           skillFolder: 'coingecko-coin-supply',           defaultOn: true  },
+      { id: 'asset-platforms',       label: 'Asset Platforms',     assetFile: 'coingecko/asset-platforms.md',       skillFolder: 'coingecko-asset-platforms',       defaultOn: true  },
+      { id: 'contract',              label: 'Contract',            assetFile: 'coingecko/contract.md',              skillFolder: 'coingecko-contract',              defaultOn: true  },
+      { id: 'utils',                 label: 'Utils',               assetFile: 'coingecko/utils.md',                 skillFolder: 'coingecko-utils',                 defaultOn: true  },
+      { id: 'derivatives',           label: 'Derivatives',         assetFile: 'coingecko/derivatives.md',           skillFolder: 'coingecko-derivatives',           defaultOn: false },
+      { id: 'nfts',                  label: 'NFTs',                assetFile: 'coingecko/nfts.md',                  skillFolder: 'coingecko-nfts',                  defaultOn: false },
+      { id: 'treasury',              label: 'Treasury',            assetFile: 'coingecko/treasury.md',              skillFolder: 'coingecko-treasury',              defaultOn: false },
+      { id: 'onchain-networks',      label: 'On-chain Networks',   assetFile: 'coingecko/onchain-networks.md',      skillFolder: 'coingecko-onchain-networks',      defaultOn: false },
+      { id: 'onchain-pools',         label: 'On-chain Pools',      assetFile: 'coingecko/onchain-pools.md',         skillFolder: 'coingecko-onchain-pools',         defaultOn: false },
+      { id: 'onchain-tokens',        label: 'On-chain Tokens',     assetFile: 'coingecko/onchain-tokens.md',        skillFolder: 'coingecko-onchain-tokens',        defaultOn: false },
+      { id: 'onchain-categories',    label: 'On-chain Categories', assetFile: 'coingecko/onchain-categories.md',    skillFolder: 'coingecko-onchain-categories',    defaultOn: false },
+      { id: 'onchain-ohlcv-trades',  label: 'On-chain OHLCV',      assetFile: 'coingecko/onchain-ohlcv-trades.md',  skillFolder: 'coingecko-onchain-ohlcv-trades',  defaultOn: false },
+    ],
+  },
 ]
-
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Skills() {
   const [capabilities, setCapabilities] = useState(CAPABILITY_SKILLS)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  // Map of skillKey → true for each installed module
   const [installedModules, setInstalledModules] = useState({})
 
   useEffect(() => {
-    // read-integration-skills returns { 'binance-spot': true, ... }
-    // keyed by skillFolder — just use the key presence directly
     window.electronAPI?.readIntegrationSkills().then((entries) => {
       const installed = {}
       for (const key of Object.keys(entries || {})) {
@@ -126,7 +144,6 @@ export default function Skills() {
         <p className="dash-page-sub">Manage agent capabilities and exchange integrations.</p>
       </div>
 
-      {/* ── Capabilities ── */}
       <p className="skills-section-label">CAPABILITIES</p>
       <div className="skills-grid">
         {capabilities.map((skill) => (
@@ -151,7 +168,6 @@ export default function Skills() {
         </button>
       </div>
 
-      {/* ── Integrations ── */}
       <p className="skills-section-label" style={{ marginTop: 32 }}>INTEGRATIONS</p>
       <div className="integration-list">
         {INTEGRATION_SKILLS.map((skill) => (
@@ -167,22 +183,16 @@ export default function Skills() {
   )
 }
 
-// ── IntegrationCard ───────────────────────────────────────────────────────────
 function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
   const { Icon, label, desc, accentColor, fields, modules, buildEnvVars } = skill
 
-  // A card is "connected" if at least one module slug folder exists in workspace/skills/
   const connectedModuleKeys = modules.filter((m) => installedModules[m.skillFolder]).map((m) => m.skillFolder)
   const isConnected = connectedModuleKeys.length > 0
 
   const [expanded, setExpanded] = useState(false)
-
-  // Credential field values
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.key, ''])))
   const [fieldErrors, setFieldErrors] = useState({})
   const [revealed, setRevealed] = useState({})
-
-  // Module selection (default: each module's defaultOn)
   const [selectedModules, setSelectedModules] = useState(
     () => Object.fromEntries(modules.map((m) => [m.id, m.defaultOn]))
   )
@@ -238,7 +248,6 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
 
   return (
     <div className={`integration-card${expanded ? ' integration-card-open' : ''}`}>
-      {/* Header */}
       <div className="integration-card-header">
         <div className="integration-icon" style={{ background: accentColor + '22', color: accentColor }}>
           <Icon />
@@ -265,10 +274,8 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
         )}
       </div>
 
-      {/* Expanded form */}
       {expanded && (
         <div className="integration-form">
-          {/* Credential fields */}
           {fields.map((f) => (
             <div key={f.key} className="integration-field">
               <label className="integration-field-label">{f.label}</label>
@@ -296,7 +303,6 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
             </div>
           ))}
 
-          {/* Module checkboxes */}
           <div className="integration-modules-label">SKILL MODULES</div>
           <div className="integration-modules-grid">
             {modules.map((m) => {
@@ -306,11 +312,12 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
                 <button
                   key={m.id}
                   className={`module-chip${checked ? ' module-chip-on' : ''}`}
+                  style={checked ? { borderColor: accentColor + '66', background: accentColor + '12' } : {}}
                   onClick={() => { if (!alreadyInstalled) toggleModule(m.id) }}
                   disabled={alreadyInstalled}
                   title={alreadyInstalled ? 'Already installed' : undefined}
                 >
-                  <span className={`module-chip-dot${checked ? ' module-chip-dot-on' : ''}`} />
+                  <span className={`module-chip-dot${checked ? ' module-chip-dot-on' : ''}`} style={checked ? { background: accentColor } : {}} />
                   {m.label}
                   {alreadyInstalled && <span className="module-chip-tick"> ✓</span>}
                 </button>
@@ -319,7 +326,7 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
           </div>
 
           {error && <p className="form-error">{error}</p>}
-          {installing && <p className="form-hint-saving">Installing modules & restarting gateway…</p>}
+          {installing && <p className="form-hint-saving">Installing modules — this may take a moment…</p>}
 
           <button
             className="dash-btn-primary"
@@ -335,11 +342,18 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
   )
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
 function BinanceIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 0L7.27 4.73 9.4 6.86 12 4.27l2.6 2.59 2.13-2.13L12 0zM4.73 7.27L2.13 9.87 4.26 12l-2.13 2.13 2.6 2.6 2.13-2.13L9.4 17.14l-2.13 2.13L12 24l4.73-4.73-2.13-2.13L17.14 14.6l2.13 2.13 2.6-2.6L19.74 12l2.13-2.13-2.6-2.6-2.13 2.13L14.6 6.86l2.13-2.13L12 0 4.73 7.27zM12 8.9L15.1 12 12 15.1 8.9 12 12 8.9z"/>
+    </svg>
+  )
+}
+
+function CoinGeckoIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10S2 17.514 2 12 6.486 2 12 2zm0 2a8 8 0 100 16A8 8 0 0012 4zm-1 4a1 1 0 110 2 1 1 0 010-2zm4 1a1 1 0 110 2 1 1 0 010-2zm-5 3c0-.552.895-1 2-1h2c1.105 0 2 .448 2 1v1c0 1.657-1.343 3-3 3s-3-1.343-3-3v-1z"/>
     </svg>
   )
 }

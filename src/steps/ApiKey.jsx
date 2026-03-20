@@ -67,7 +67,7 @@ export default function ApiKey({ config, onChange, onNext, onBack }) {
 
       <h2 className="step-title">Enter Your API Key</h2>
       <p className="step-sub">
-        Your key is stored locally in <code>~/.octoclaw/.env</code> and never sent anywhere else.
+        Your key is stored locally in <code>~/.openclaw/.env</code> and never sent anywhere else.
       </p>
 
       <div className="field-group">
