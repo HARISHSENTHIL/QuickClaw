@@ -1,69 +1,102 @@
 import logoSrc from '../assets/octoclaw-logo.webp?inline'
 
-function IconProviders() {
+function IconCube() {
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="6" y="6" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M8 6V3M10 6V3M12 6V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      <path d="M8 17v-3M10 17v-3M12 17v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      <path d="M6 8H3M6 10H3M6 12H3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      <path d="M17 8h-3M17 10h-3M17 12h-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
 }
 
-function IconShield() {
+function IconLock() {
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10 2L17 5v5c0 4.5-3.1 7.4-7 8.5C6.1 17.4 3 14.5 3 10V5l7-3z"
-        stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-      <path d="M7 10.5l2 2 4-4" stroke="currentColor" strokeWidth="1.5"
-        strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="17" r="1.5" fill="currentColor" />
     </svg>
   )
 }
 
-function IconTerminal() {
+function IconBolt() {
   return (
-    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M6 8l3 2.5L6 13" stroke="currentColor" strokeWidth="1.5"
-        strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M12 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
 }
+
+function IconCheck() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M2.5 7.5L6 11L12.5 4" stroke="#FF8C42" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+const CAPABILITIES = [
+  'Track whale movements in real time',
+  'Analyze token fundamentals & sentiment',
+  'Execute strategy-based trades',
+  'Monitor your portfolio with AI insights',
+]
 
 export default function Welcome({ onNext }) {
   return (
-    <div className="step center">
-      <div className="welcome-logo">
-        <img src={logoSrc} alt="OctoClaw" className="welcome-logo-img" />
-      </div>
+    <div className="welcome-v2">
+      {/* Drag region replacing the global titlebar */}
+      <div className="wv2-drag" />
 
-      <h1 className="welcome-title">OctoClaw</h1>
-      <p className="welcome-subtitle">One-click AI agent setup for macOS</p>
-
-      <div className="feature-chips">
-        <div className="chip">
-          <div className="chip-icon purple"><IconProviders /></div>
-          <span>9 AI providers — OpenAI, Anthropic, Google &amp; more</span>
+      {/* Hero: logo + title + subtitle */}
+      <div className="wv2-hero">
+        <div className="wv2-logo">
+          <img src={logoSrc} alt="OctoClaw" className="wv2-logo-img" />
         </div>
-        <div className="chip">
-          <div className="chip-icon cyan"><IconShield /></div>
-          <span>API key stored locally, never transmitted</span>
-        </div>
-        <div className="chip">
-          <div className="chip-icon green"><IconTerminal /></div>
-          <span>Auto-installs &amp; configures local gateway</span>
+        <div className="wv2-hero-text">
+          <h1 className="wv2-title">
+            OctoClaw <span className="wv2-title-dim">Crypto Agent</span>
+          </h1>
+          <p className="wv2-subtitle">Your autonomous AI for on-chain intelligence &amp; execution</p>
         </div>
       </div>
 
-      <button className="btn-primary" onClick={onNext}>
-        Get Started →
-      </button>
+      {/* Three feature cards */}
+      <div className="wv2-cards">
+        <div className="wv2-card">
+          <div className="wv2-card-icon wv2-icon-purple"><IconCube /></div>
+          <h3 className="wv2-card-title">Multi-LLM<br />Intelligence Layer</h3>
+          <p className="wv2-card-desc">Route tasks across OpenAI, Anthropic, Groq &amp; more — optimized for crypto workflows.</p>
+        </div>
+        <div className="wv2-card wv2-card-teal">
+          <div className="wv2-card-icon wv2-icon-teal"><IconLock /></div>
+          <h3 className="wv2-card-title">Secure Local<br />Execution</h3>
+          <p className="wv2-card-desc">Private keys &amp; API credentials stay on your device — never exposed.</p>
+        </div>
+        <div className="wv2-card wv2-card-blue">
+          <div className="wv2-card-icon wv2-icon-blue"><IconBolt /></div>
+          <h3 className="wv2-card-title">Automated<br />Crypto Actions</h3>
+          <p className="wv2-card-desc">Analyze markets, monitor wallets, trigger trades, and execute strategies autonomously.</p>
+        </div>
+      </div>
 
-      <p className="footer-note">OctoClaw Desktop · v1.0.0</p>
+      {/* Capability checklist */}
+      <div className="wv2-checklist-wrap">
+        <p className="wv2-checklist-heading">What you can do:</p>
+        <ul className="wv2-checklist">
+          {CAPABILITIES.map((c) => (
+            <li key={c}><IconCheck /><span>{c}</span></li>
+          ))}
+        </ul>
+      </div>
+
+      {/* CTA */}
+      <button className="wv2-cta" onClick={onNext}>Launch Crypto Agent</button>
+      <button className="wv2-config" onClick={onNext}>Configure Providers</button>
+
+      {/* Footer */}
+      <p className="wv2-footer">v1.0.0 &nbsp;&middot;&nbsp; Local-first &nbsp;&middot;&nbsp; Secure &nbsp;&middot;&nbsp; Extensible</p>
     </div>
   )
 }

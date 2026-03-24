@@ -57,7 +57,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {!isDashboard && (
+      {!isDashboard && step !== 'apikey' && step !== 'welcome' && step !== 'provider' && step !== 'installing' && (
         <>
           <div className="titlebar">
             <div className="titlebar-brand">
