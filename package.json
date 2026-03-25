@@ -7,6 +7,7 @@
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build && electron-builder",
     "build:mac": "vite build && electron-builder --mac",
+    "build:win": "vite build && electron-builder --win",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -35,8 +36,22 @@
       "title": "OctoClaw Installer",
       "window": { "width": 540, "height": 380 }
     },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OctoClaw"
+    },
     "extraResources": [
-      { "from": "assets/openclaw-install.sh", "to": "openclaw-install.sh" }
+      { "from": "assets/openclaw-install.sh",  "to": "openclaw-install.sh"  },
+      { "from": "assets/openclaw-install.ps1", "to": "openclaw-install.ps1" }
     ],
     "files": [
       "dist/**/*",

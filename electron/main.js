@@ -8,31 +8,44 @@ const http = require('http')
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
 // Builds a PATH-rich env that resolves openclaw regardless of install method.
-// Handles Homebrew, npm global, NVM (all versions). Never overrides existing PATH.
+// Handles Homebrew, npm global, NVM (macOS/Linux) and common Node paths (Windows).
 function buildEnv(extra = {}) {
-  const home = os.homedir()
-  const brewPrefix = fs.existsSync('/opt/homebrew') ? '/opt/homebrew' : '/usr/local'
+  const home  = os.homedir()
+  const isWin = process.platform === 'win32'
+  const knownBins = []
 
-  const knownBins = [
-    `${brewPrefix}/bin`, `${brewPrefix}/sbin`,
-    '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin',
-    `${home}/.local/bin`, `${home}/.npm-global/bin`,
-  ]
-
-  const nvmDir = path.join(home, '.nvm', 'versions', 'node')
-  if (fs.existsSync(nvmDir)) {
-    try {
-      fs.readdirSync(nvmDir).sort().reverse()
-        .forEach((v) => knownBins.push(path.join(nvmDir, v, 'bin')))
-    } catch {}
+  if (!isWin) {
+    // macOS / Linux — Homebrew, standard Unix dirs, NVM
+    const brewPrefix = fs.existsSync('/opt/homebrew') ? '/opt/homebrew' : '/usr/local'
+    knownBins.push(
+      `${brewPrefix}/bin`, `${brewPrefix}/sbin`,
+      '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin',
+      `${home}/.local/bin`, `${home}/.npm-global/bin`,
+    )
+    const nvmDir = path.join(home, '.nvm', 'versions', 'node')
+    if (fs.existsSync(nvmDir)) {
+      try {
+        fs.readdirSync(nvmDir).sort().reverse()
+          .forEach((v) => knownBins.push(path.join(nvmDir, v, 'bin')))
+      } catch {}
+    }
+  } else {
+    // Windows — npm global and common Node.js install locations
+    knownBins.push(
+      path.join(process.env.APPDATA  || '', 'npm'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'nodejs'),
+      path.join(home, 'AppData', 'Roaming', 'npm'),
+      'C:\\Program Files\\nodejs',
+      'C:\\Program Files (x86)\\nodejs',
+    )
   }
 
-  const inherited = (process.env.PATH || '').split(':').filter(Boolean)
+  const inherited = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
   return {
     ...process.env,
     HOME: home,
-    TERM: 'xterm-256color',
-    PATH: [...new Set([...knownBins, ...inherited])].join(':'),
+    ...(isWin ? {} : { TERM: 'xterm-256color' }),
+    PATH: [...new Set([...knownBins, ...inherited])].join(path.delimiter),
     ...extra,
   }
 }
@@ -41,7 +54,10 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 800, height: 620,
     resizable: false,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    ...(process.platform !== 'darwin' && {
+      titleBarOverlay: { color: '#09080F', symbolColor: '#8892B0', height: 48 },
+    }),
     backgroundColor: '#0A0A0A',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -64,9 +80,11 @@ app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) creat
 
 // ── Installer ──────────────────────────────────────────────────────────────
 ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
+  const isWin      = process.platform === 'win32'
+  const scriptFile = isWin ? 'openclaw-install.ps1' : 'openclaw-install.sh'
   const scriptPath = isDev
-    ? path.join(__dirname, '../assets/openclaw-install.sh')
-    : path.join(process.resourcesPath, 'openclaw-install.sh')
+    ? path.join(__dirname, '..', 'assets', scriptFile)
+    : path.join(process.resourcesPath, scriptFile)
 
   if (!fs.existsSync(scriptPath)) {
     event.reply('install-log', `[ERR ] Script not found at: ${scriptPath}`)
@@ -75,9 +93,9 @@ ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
   }
 
   // Copy to writable temp dir — source may be on read-only filesystem (DMG/app bundle)
-  const tmpScript = path.join(os.tmpdir(), 'octoclaw-install.sh')
+  const tmpScript = path.join(os.tmpdir(), scriptFile)
   fs.copyFileSync(scriptPath, tmpScript)
-  fs.chmodSync(tmpScript, '755')
+  if (!isWin) fs.chmodSync(tmpScript, '755')   // chmod not applicable on Windows
 
   const providerModelMap = {
     openai: `openai/${model}`, anthropic: `anthropic/${model}`,
@@ -86,7 +104,12 @@ ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
     together: `together/${model}`, openrouter: model, ollama: `ollama/${model}`,
   }
 
-  const child = spawn('/bin/bash', [tmpScript], {
+  // Platform-specific spawn: PowerShell on Windows, bash on macOS/Linux
+  const [spawnCmd, spawnArgs] = isWin
+    ? ['powershell.exe', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-NonInteractive', '-File', tmpScript]]
+    : ['/bin/bash', [tmpScript]]
+
+  const child = spawn(spawnCmd, spawnArgs, {
     env: buildEnv({
       OPENCLAW_API_KEY: apiKey,
       OPENCLAW_PROVIDER: provider,
