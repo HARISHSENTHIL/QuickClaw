@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 # OctoClaw Windows Installer
 # Mirrors openclaw-install.sh — all log prefixes match the Installing.jsx parser.
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'   # suppress Invoke-WebRequest progress spam
 
 # ── Read config from env vars (set by Electron) ───────────────────────────
