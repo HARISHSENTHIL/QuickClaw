@@ -65,7 +65,7 @@ log_info "Checking OpenClaw installation..."
 $ocCmd = Get-Command openclaw -ErrorAction SilentlyContinue
 if ($ocCmd) {
   $ocVer = (& openclaw --version 2>$null) | Select-Object -First 1
-  log_success "Already installed → $ocVer"
+  log_success "Already installed -> $ocVer"
 } else {
   log_info "Not found. Installing..."
   try {
@@ -75,7 +75,7 @@ if ($ocCmd) {
     ).Content
     $env:PATH = "$env:APPDATA\npm;$env:PATH"
     $ocVer = (& openclaw --version 2>$null) | Select-Object -First 1
-    log_success "Installed → $ocVer"
+    log_success "Installed -> $ocVer"
   } catch {
     # Fallback: npm global install
     $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
@@ -84,7 +84,7 @@ if ($ocCmd) {
       & npm install -g openclaw@latest 2>&1 | Out-Null
       $env:PATH = "$env:APPDATA\npm;$env:PATH"
       $ocVer = (& openclaw --version 2>$null) | Select-Object -First 1
-      log_success "Installed via npm → $ocVer"
+      log_success "Installed via npm -> $ocVer"
     } else {
       log_error "Could not install openclaw. Install Node.js from nodejs.org and retry."
     }
@@ -155,7 +155,7 @@ try {
   & openclaw gateway install 2>&1 | Out-Null
   log_success "Daemon installed."
 } catch {
-  log_warn "Daemon install had issues — you may start the gateway manually."
+  log_warn "Daemon install had issues - you may start the gateway manually."
 }
 
 # ── Step 7: Write auth profile (AFTER install, BEFORE start) ──────────────
