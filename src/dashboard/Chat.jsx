@@ -88,7 +88,13 @@ export default function Chat() {
     }
 
     webview.addEventListener('did-finish-load', inject)
-    return () => webview.removeEventListener('did-finish-load', inject)
+    // Also inject with a short delay in case did-finish-load already fired
+    // before this effect ran (race between React render and page load speed)
+    const fallbackTimer = setTimeout(inject, 800)
+    return () => {
+      webview.removeEventListener('did-finish-load', inject)
+      clearTimeout(fallbackTimer)
+    }
   }, [phase, chatUrl])
 
   if (phase === 'init' || phase === 'starting') {

@@ -218,9 +218,13 @@ async function pollGateway(attempts = 20, intervalMs = 600) {
 ipcMain.handle('ensure-gateway', async () => {
   if (await probeGateway()) return { success: true }
 
-  const env = buildEnv()
+  const env   = buildEnv()
+  const isWin = process.platform === 'win32'
+
+  // On Windows, openclaw is a .cmd script — needs shell:true to execute.
+  // On macOS/Linux, shell:false is fine.
   const run = (args, detach = false) => new Promise((resolve) => {
-    const opts = { env, shell: false, stdio: 'ignore' }
+    const opts = { env, shell: isWin, stdio: 'ignore' }
     if (detach) opts.detached = true
     const child = spawn('openclaw', args, opts)
     if (detach) child.unref()
@@ -230,14 +234,22 @@ ipcMain.handle('ensure-gateway', async () => {
     setTimeout(() => resolve(null), detach ? 2000 : 6000)
   })
 
+  // Check binary exists before trying to manage the gateway
+  const binaryFound = await new Promise((resolve) => {
+    const checker = spawn(isWin ? 'where' : 'which', ['openclaw'], { env, shell: false, stdio: 'ignore' })
+    checker.on('close', (code) => resolve(code === 0))
+    checker.on('error', () => resolve(false))
+    setTimeout(() => resolve(false), 3000)
+  })
+  if (!binaryFound) return { success: false, error: 'BINARY_NOT_FOUND' }
+
   await run(['gateway', 'stop'])
   await new Promise((r) => setTimeout(r, 2000))
 
-  const startErr = await run(['gateway', 'start'], true)
-  if (startErr?.code === 'ENOENT') return { success: false, error: 'BINARY_NOT_FOUND' }
+  await run(['gateway', 'start'], true)
   if (await pollGateway(5, 600)) return { success: true }
 
-  // Service not installed — install LaunchAgent, repair auth, restart
+  // Service not installed — install, repair auth, restart
   await run(['gateway', 'stop'])
   await new Promise((r) => setTimeout(r, 1500))
   await run(['gateway', 'install'])
@@ -273,7 +285,7 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
 
     const env = buildEnv()
     await new Promise((resolve) => {
-      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: process.platform === 'win32', stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
       setTimeout(resolve, 6000)
@@ -352,7 +364,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
 
     if (toolsContent.trim()) {
       fs.writeFileSync(toolsPath, toolsContent, 'utf8')
-      fs.chmodSync(toolsPath, 0o600)
+      try { fs.chmodSync(toolsPath, 0o600) } catch {} // no-op on Windows
     }
 
     // Restart gateway so it loads the newly installed skills.
@@ -360,7 +372,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     // stop → 3s wait → start prevents two instances (which causes Telegram 409 loop).
     const env = buildEnv()
     const run = (args) => new Promise((resolve) => {
-      const child = spawn('openclaw', args, { env, shell: false, stdio: 'ignore' })
+      const child = spawn('openclaw', args, { env, shell: process.platform === 'win32', stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
       setTimeout(resolve, 6000)
