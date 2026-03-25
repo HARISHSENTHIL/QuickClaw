@@ -18,7 +18,7 @@ function log_info    { param($msg) Write-Output "[INFO]  $msg";  [Console]::Out.
 function log_success { param($msg) Write-Output "[ OK ]  $msg";  [Console]::Out.Flush() }
 function log_warn    { param($msg) Write-Output "[WARN]  $msg";  [Console]::Out.Flush() }
 function log_error   { param($msg) Write-Output "[ERR ]  $msg";  [Console]::Out.Flush(); exit 1 }
-function divider     { Write-Output '──────────────────────────────────────────────'; [Console]::Out.Flush() }
+function divider     { Write-Output '----------------------------------------------'; [Console]::Out.Flush() }
 
 # Restrict file to current user only (Windows equivalent of chmod 600)
 function Protect-File {
