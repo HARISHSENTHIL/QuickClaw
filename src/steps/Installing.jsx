@@ -26,6 +26,9 @@ export default function Installing({ config, onDone }) {
   const [pct, setPct]         = useState(0)
   const [label, setLabel]     = useState('Preparing…')
   const [errorMsg, setErrorMsg] = useState('')
+  const [logs, setLogs]       = useState([])
+  const [showLogs, setShowLogs] = useState(false)
+  const logEndRef = useRef(null)
   // Smoothly animate percentage to target
   const targetPct = useRef(0)
   const animRef   = useRef(null)
@@ -54,6 +57,8 @@ export default function Installing({ config, onDone }) {
     window.electronAPI?.onLog((msg) => {
       const clean = stripAnsi(msg).trim()
       if (!clean) return
+
+      setLogs((prev) => [...prev, clean])
 
       for (const step of STEP_MAP) {
         if (clean.includes(step.match)) {
@@ -91,6 +96,10 @@ export default function Installing({ config, onDone }) {
       window.electronAPI?.removeAllListeners()
     }
   }, [])
+
+  useEffect(() => {
+    if (showLogs) logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs, showLogs])
 
   // Circumference of the progress ring (r=28)
   const R   = 28
@@ -156,6 +165,30 @@ export default function Installing({ config, onDone }) {
               ← Go Back &amp; Retry
             </button>
           </>
+        )}
+
+        {/* Log panel — always visible on error, toggleable while running */}
+        {status !== 'success' && logs.length > 0 && (
+          <div className="inst-log-section">
+            {status === 'running' && (
+              <button className="inst-log-toggle" onClick={() => setShowLogs((v) => !v)}>
+                {showLogs ? '▲ Hide logs' : '▼ Show logs'}
+              </button>
+            )}
+            {(showLogs || status === 'error') && (
+              <div className="inst-log-box">
+                {logs.map((line, i) => (
+                  <div
+                    key={i}
+                    className={`inst-log-line${line.includes('[ERR') || line.toLowerCase().includes('error') ? ' inst-log-err' : ''}`}
+                  >
+                    {line}
+                  </div>
+                ))}
+                <div ref={logEndRef} />
+              </div>
+            )}
+          </div>
         )}
 
       </div>

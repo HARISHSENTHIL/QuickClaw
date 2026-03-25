@@ -2192,3 +2192,38 @@ code {
   color: #fff;
   border-color: rgba(255,255,255,0.35);
 }
+
+/* ── Installer log panel ── */
+.inst-log-section {
+  width: 100%;
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.inst-log-toggle {
+  background: none;
+  border: none;
+  color: #8892B0;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+.inst-log-toggle:hover { color: #cdd5e0; }
+.inst-log-box {
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'Menlo', 'Consolas', monospace;
+  font-size: 10.5px;
+  color: #8892B0;
+  text-align: left;
+}
+.inst-log-line { line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+.inst-log-err  { color: #FC8181; }
