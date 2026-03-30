@@ -25,7 +25,13 @@ export default function Chat() {
       if (cancelled) return
 
       if (result?.success) {
-        setChatUrl(tok ? `http://127.0.0.1:18789/?token=${tok}` : 'http://127.0.0.1:18789/')
+        if (!tok) {
+          // Token missing — loading webview without it causes "1008 unauthorized" disconnect
+          setStatusMsg('Gateway token not found. Your ~/.openclaw/.env may be missing or corrupted. Please restart the app — if the issue persists, use the RESET button to re-run setup.')
+          setPhase('failed')
+          return
+        }
+        setChatUrl(`http://127.0.0.1:18789/?token=${tok}`)
         setPhase('ready')
       } else if (result?.error === 'BINARY_NOT_FOUND') {
         setStatusMsg('openclaw binary not found — please re-run setup')

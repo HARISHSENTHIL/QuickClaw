@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSkillsConfig: (skills) => ipcRenderer.invoke('save-skills-config', skills),
   readConfig: () => ipcRenderer.invoke('read-config'),
   checkInstalled: () => ipcRenderer.invoke('check-installed'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   ensureGateway: () => ipcRenderer.invoke('ensure-gateway'),
   installIntegrationSkill: (data) => ipcRenderer.invoke('install-integration-skill', data),
   readIntegrationSkills: () => ipcRenderer.invoke('read-integration-skills'),

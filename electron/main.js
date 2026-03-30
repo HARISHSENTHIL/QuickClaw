@@ -7,8 +7,38 @@ const http = require('http')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
+// ── Shell PATH resolution ──────────────────────────────────────────────────
+// macOS GUI apps are launched by launchd, not a shell — they inherit only
+// /usr/bin:/bin:/usr/sbin:/sbin. nvm, Homebrew, volta, asdf, etc. are all
+// invisible. This is the root cause of every "npm not found" / EACCES error.
+//
+// Fix: run the user's own login shell once at startup to get their real PATH.
+// VS Code, Hyper, and all professional Electron apps use this exact pattern.
+// We cache the result — shell startup (especially nvm) can take 200-800ms.
+let _shellPath = null
+function resolveShellPath() {
+  if (_shellPath !== null) return _shellPath
+  if (process.platform !== 'darwin') return (_shellPath = '')
+  const shell = process.env.SHELL || '/bin/zsh'
+  const isFish = shell.endsWith('/fish')
+  // -l = login shell (reads ~/.zprofile, ~/.bash_profile)
+  // -i = interactive (also reads ~/.zshrc, ~/.bashrc) — skip for fish to avoid prompt bleed
+  const cmd = 'echo -n "|P|"; printf "%s" "$PATH"; echo -n "|P|"'
+  const args = isFish ? ['-lc', cmd] : ['-ilc', cmd]
+  for (const sh of [shell, '/bin/zsh', '/bin/bash']) {
+    try {
+      const out = require('child_process').execFileSync(sh, args, {
+        encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'],
+      })
+      const m = out.match(/\|P\|(.*?)\|P\|/s)
+      if (m?.[1]?.trim()) return (_shellPath = m[1].trim())
+    } catch {}
+  }
+  return (_shellPath = '')
+}
+
 // Builds a PATH-rich env that resolves openclaw regardless of install method.
-// Handles Homebrew, npm global, NVM (all versions). Never overrides existing PATH.
+// Combines: real shell PATH (from user's login shell) + known static fallbacks.
 function buildEnv(extra = {}) {
   const home = os.homedir()
   const brewPrefix = fs.existsSync('/opt/homebrew') ? '/opt/homebrew' : '/usr/local'
@@ -27,12 +57,17 @@ function buildEnv(extra = {}) {
     } catch {}
   }
 
+  const shellBins = resolveShellPath().split(':').filter(Boolean)
   const inherited = (process.env.PATH || '').split(':').filter(Boolean)
   return {
     ...process.env,
     HOME: home,
     TERM: 'xterm-256color',
-    PATH: [...new Set([...knownBins, ...inherited])].join(':'),
+    // Shell PATH first (user's real env) → static fallbacks → inherited Electron PATH
+    PATH: [...new Set([...shellBins, ...knownBins, ...inherited])].join(':'),
+    // Prevent brew from triggering sudo checks and slow auto-updates
+    HOMEBREW_NO_AUTO_UPDATE: '1',
+    HOMEBREW_NO_ENV_HINTS: '1',
     ...extra,
   }
 }
@@ -58,9 +93,17 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  // Warm the shell PATH cache before any install or gateway spawn.
+  // Runs the user's login shell once (~200-800ms) to get their real PATH
+  // (nvm, Homebrew, volta, asdf, etc.) — cached for the app's lifetime.
+  resolveShellPath()
+  createWindow()
+  // Register activate inside whenReady — prevents the race condition where
+  // activate fires before the app is ready (reproducible when running from DMG)
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+})
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 
 // ── Installer ──────────────────────────────────────────────────────────────
 ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
@@ -114,6 +157,8 @@ ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
 
 ipcMain.on('open-url', (_, url) => shell.openExternal(url))
 
+ipcMain.handle('get-app-version', () => app.getVersion())
+
 ipcMain.on('resize-window', (_, { width, height }) => {
   const win = BrowserWindow.getAllWindows()[0]
   if (win) {
@@ -159,6 +204,11 @@ function repairAuthProfiles() {
 
     if (!authStore) return
 
+    // Ensure state dir and config have correct permissions every time we repair.
+    // Default umask gives 755/644 — doctor flags those and gateway auth fails silently.
+    try { fs.chmodSync(path.join(home, '.openclaw'), 0o700) } catch {}
+    try { fs.chmodSync(path.join(home, '.openclaw', 'openclaw.json'), 0o600) } catch {}
+
     for (const loc of [
       path.join(home, '.openclaw', 'auth-profiles.json'),
       path.join(home, '.openclaw', 'agents', 'main', 'auth-profiles.json'),
@@ -192,7 +242,15 @@ async function pollGateway(attempts = 20, intervalMs = 600) {
 
 // Ensures exactly one gateway instance — always stop before start to prevent
 // two instances running simultaneously (causes Telegram 409 conflict loop).
-ipcMain.handle('ensure-gateway', async () => {
+// In-flight promise shared so concurrent calls collapse into one operation.
+let ensureGatewayInFlight = null
+ipcMain.handle('ensure-gateway', () => {
+  if (ensureGatewayInFlight) return ensureGatewayInFlight
+  ensureGatewayInFlight = _ensureGateway().finally(() => { ensureGatewayInFlight = null })
+  return ensureGatewayInFlight
+})
+
+async function _ensureGateway() {
   if (await probeGateway()) return { success: true }
 
   const env = buildEnv()
@@ -222,7 +280,7 @@ ipcMain.handle('ensure-gateway', async () => {
   await run(['gateway', 'start'], true)
 
   return { success: await pollGateway(15, 800) }
-})
+}
 
 ipcMain.handle('read-gateway-token', async () => {
   try {

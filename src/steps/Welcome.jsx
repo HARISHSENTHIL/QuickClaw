@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import logoSrc from '../assets/octoclaw-logo.webp?inline'
 
 function IconCube() {
@@ -44,6 +45,11 @@ const CAPABILITIES = [
 ]
 
 export default function Welcome({ onNext }) {
+  const [version, setVersion] = useState('')
+  useEffect(() => {
+    window.electronAPI?.getAppVersion().then(setVersion).catch(() => {})
+  }, [])
+
   return (
     <div className="welcome-v2">
       {/* Drag region replacing the global titlebar */}
@@ -92,11 +98,10 @@ export default function Welcome({ onNext }) {
       </div>
 
       {/* CTA */}
-      <button className="wv2-cta" onClick={onNext}>Launch Crypto Agent</button>
-      <button className="wv2-config" onClick={onNext}>Configure Providers</button>
+      <button className="wv2-cta" onClick={onNext}>Get Started →</button>
 
       {/* Footer */}
-      <p className="wv2-footer">v1.0.0 &nbsp;&middot;&nbsp; Local-first &nbsp;&middot;&nbsp; Secure &nbsp;&middot;&nbsp; Extensible</p>
+      <p className="wv2-footer">{version ? `v${version}` : ''} &nbsp;&middot;&nbsp; Local-first &nbsp;&middot;&nbsp; Secure &nbsp;&middot;&nbsp; Extensible</p>
     </div>
   )
 }

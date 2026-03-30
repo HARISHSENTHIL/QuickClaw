@@ -5,20 +5,28 @@ const stripAnsi = (str) =>
 
 // Each entry: log substring to match → { pct, label }
 const STEP_MAP = [
-  { match: 'Starting OpenClaw installer',     pct:  5,  label: 'Starting installer…' },
-  { match: 'Checking OpenClaw installation',  pct: 10,  label: 'Checking CLI…' },
-  { match: 'Already installed',               pct: 20,  label: 'CLI found, skipping…' },
-  { match: 'Not found. Installing',           pct: 15,  label: 'Downloading CLI…' },
-  { match: 'Ensuring openclaw is on PATH',    pct: 25,  label: 'Configuring PATH…' },
-  { match: 'Setting up directories',          pct: 33,  label: 'Setting up directories…' },
-  { match: 'Saving API key',                  pct: 44,  label: 'Saving API key…' },
-  { match: 'Generating gateway auth token',   pct: 55,  label: 'Generating auth token…' },
-  { match: 'Writing config to',               pct: 62,  label: 'Writing config…' },
-  { match: 'Installing gateway daemon',       pct: 70,  label: 'Installing gateway…' },
-  { match: 'Writing auth profile',            pct: 80,  label: 'Writing auth profile…' },
-  { match: 'Starting gateway',                pct: 88,  label: 'Starting gateway…' },
-  { match: 'Verifying',                       pct: 95,  label: 'Verifying setup…' },
-  { match: 'OpenClaw is live',                pct: 100, label: 'Almost done…' },
+  { match: 'Starting OpenClaw installer',        pct:  5, label: 'Starting installer…' },
+  { match: 'Checking OpenClaw installation',     pct: 10, label: 'Checking CLI…' },
+  { match: 'Already installed',                  pct: 20, label: 'CLI found, skipping…' },
+  { match: 'Not found. Installing',              pct: 11, label: 'CLI not found — installing…' },
+  { match: 'Trying official installer',          pct: 12, label: 'Trying official installer…' },
+  // Node.js bootstrap phase (only runs when Node is missing or too old)
+  { match: 'Setting up Node.js automatically',   pct: 13, label: 'Setting up Node.js…' },
+  { match: 'Downloading nvm',                    pct: 14, label: 'Downloading nvm…' },
+  { match: 'Installing Node.js v22',             pct: 16, label: 'Installing Node.js…' },
+  { match: 'Installing Node.js via Homebrew',    pct: 16, label: 'Installing Node.js…' },
+  { match: 'Node.js ready',                      pct: 19, label: 'Node.js ready…' },
+  { match: 'Installing openclaw via npm',        pct: 21, label: 'Installing CLI via npm…' },
+  { match: 'Ensuring openclaw is on PATH',       pct: 25, label: 'Configuring PATH…' },
+  { match: 'Setting up directories',             pct: 33, label: 'Setting up directories…' },
+  { match: 'Saving API key',                     pct: 44, label: 'Saving API key…' },
+  { match: 'Generating gateway auth token',      pct: 55, label: 'Generating auth token…' },
+  { match: 'Writing config to',                  pct: 62, label: 'Writing config…' },
+  { match: 'Installing gateway daemon',          pct: 70, label: 'Installing gateway…' },
+  { match: 'Writing auth profile',               pct: 80, label: 'Writing auth profile…' },
+  { match: 'Starting gateway',                   pct: 88, label: 'Starting gateway…' },
+  { match: 'Verifying',                          pct: 95, label: 'Verifying setup…' },
+  { match: 'OpenClaw is live',                   pct: 100, label: 'Almost done…' },
 ]
 
 export default function Installing({ config, onDone }) {
@@ -62,8 +70,14 @@ export default function Installing({ config, onDone }) {
         }
       }
 
-      if (clean.toLowerCase().includes('error') || clean.includes('[ERR')) {
-        setErrorMsg(clean)
+      if (clean.startsWith('[ERR') || clean.startsWith('[stderr]')) {
+        // Skip known non-fatal noise lines
+        if (clean.includes('complete log of this run can be found')) return
+        if (clean.includes('non-interactive mode')) return
+        if (clean.includes('not a TTY')) return
+        if (clean.includes('Warning:') || clean.includes('warning:')) return
+        // Keep the FIRST meaningful error — later lines are usually less specific
+        setErrorMsg((prev) => prev || clean)
       }
     })
 

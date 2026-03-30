@@ -43,16 +43,102 @@ if command -v openclaw &>/dev/null; then
   success "Already installed → $OC_VER"
 else
   info "Not found. Installing..."
+  INSTALLED=false
+
+  # ── Helper: ensure a suitable Node.js + npm is available ─────────────
+  # openclaw requires Node >= 22. nvm installs to ~/.nvm/ so zero sudo
+  # needed — solves both "no Node" and npm EACCES permission problems.
+  ensure_npm() {
+    export NVM_DIR="$HOME/.nvm"
+
+    # If node + npm exist, check version is >= 22 AND prefix is user-owned
+    if command -v node &>/dev/null && command -v npm &>/dev/null; then
+      local major
+      major=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1 | tr -d '[:space:]')
+      local prefix
+      prefix=$(npm config get prefix 2>/dev/null || echo "")
+
+      if [ -n "$major" ] && [ "$major" -ge 22 ] 2>/dev/null; then
+        # Version OK — check prefix isn't system-wide (needs sudo for -g installs)
+        if echo "$prefix" | grep -q "$HOME"; then
+          return 0  # nvm or user-local install — safe to use
+        else
+          info "System Node.js detected — switching to user-local install to avoid permission errors..."
+        fi
+      else
+        info "Node.js $(node --version 2>/dev/null || echo 'not found') is below required v22 — upgrading..."
+      fi
+    fi
+
+    info "Setting up Node.js automatically (no action needed from you)..."
+
+    # Clear conflicting npm prefix — breaks nvm if left set
+    npm config delete prefix 2>/dev/null || true
+
+    # Install nvm silently — PROFILE=/dev/null stops nvm from touching shell
+    # config files (our PATH fix section handles that below).
+    # The || true is intentional: the nvm installer prints a TTY warning and
+    # exits non-zero when run from a non-interactive shell (Electron spawn).
+    # The warning is harmless — nvm installs correctly regardless.
+    if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+      info "Downloading nvm..."
+      PROFILE=/dev/null curl -fsSL \
+        https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash 2>/dev/null || true
+    fi
+
+    # Load nvm as a shell function into this session
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+    if type nvm &>/dev/null 2>&1; then
+      info "Installing Node.js v22 LTS..."
+      nvm install 22 2>/dev/null || true
+      nvm use 22 2>/dev/null || true
+      nvm alias default 22 2>/dev/null || true
+      info "Node.js ready."
+    elif command -v brew &>/dev/null; then
+      info "Installing Node.js via Homebrew..."
+      HOMEBREW_NO_AUTO_UPDATE=1 NONINTERACTIVE=1 brew install node --quiet
+      export PATH="$BREW_PREFIX/bin:$PATH"
+      info "Node.js ready."
+    else
+      return 1
+    fi
+
+    command -v npm &>/dev/null
+  }
+
+  # ── Try 1: official openclaw.ai installer (preferred) ──────────────────
+  # Fastest path when Node >= 22 is already present.
+  # If it fails for any reason (no node, EACCES, network) we fall through.
   if command -v curl &>/dev/null; then
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
-  elif command -v npm &>/dev/null; then
-    npm install -g openclaw@latest
-  else
-    error "Neither curl nor npm found. Install one and re-run."
+    info "Trying official installer via curl..."
+    if curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard; then
+      INSTALLED=true
+    else
+      warn "Official installer failed — setting up Node.js and retrying..."
+    fi
   fi
+
+  # ── Try 2: nvm → Node v22 → npm install -g ─────────────────────────────
+  # nvm installs entirely to ~/.nvm/ — no sudo, no permission issues.
+  # This also handles the EACCES case from Try 1 (system npm needing sudo).
+  if [ "$INSTALLED" = false ]; then
+    if ensure_npm; then
+      info "Installing openclaw via npm..."
+      SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g openclaw@latest
+      INSTALLED=true
+    else
+      error "Could not set up Node.js. Install v22+ from https://nodejs.org and retry."
+    fi
+  fi
+
+  # Reload nvm + extend PATH so remaining steps can find the openclaw binary
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
   export PATH="$BREW_PREFIX/bin:$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
+
   command -v openclaw &>/dev/null || \
-    error "Installed but openclaw not in PATH."
+    error "Installed but openclaw not found in PATH. Open a new terminal and try again."
   success "Installed → $(openclaw --version 2>/dev/null | head -1)"
 fi
 
@@ -60,16 +146,17 @@ fi
 divider
 info "Ensuring openclaw is on PATH in shell profile..."
 HOMEBREW_PATH_LINE="export PATH=\"$BREW_PREFIX/bin:\$HOME/.local/bin:\$PATH\""
+# nvm used PROFILE=/dev/null so it skipped writing to shell configs — we add it here
+NVM_INIT_LINE="export NVM_DIR=\"\$HOME/.nvm\" && [ -s \"\$NVM_DIR/nvm.sh\" ] && \\. \"\$NVM_DIR/nvm.sh\""
 MARKER="# Added by OctoClaw installer"
 for RC_FILE in "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc"; do
-  # Only update files that already exist
   [ -f "$RC_FILE" ] || continue
-  # Skip if the marker is already there
   grep -q "Added by OctoClaw installer" "$RC_FILE" 2>/dev/null && continue
-  printf '\n%s\n%s\n' "$MARKER" "$HOMEBREW_PATH_LINE" >> "$RC_FILE"
+  printf '\n%s\n%s\n%s\n' "$MARKER" "$HOMEBREW_PATH_LINE" "$NVM_INIT_LINE" >> "$RC_FILE"
   success "PATH written to $RC_FILE"
 done
-# Also export into the current shell session so remaining steps find openclaw
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 export PATH="$BREW_PREFIX/bin:$HOME/.local/bin:$PATH"
 
 # ── Step 2: Directories ───────────────────────────────────────────────────
@@ -77,6 +164,11 @@ divider
 info "Setting up directories..."
 mkdir -p "$OPENCLAW_HOME/workspace"
 mkdir -p "$OPENCLAW_HOME/agents/main/agent"
+# State dir must be 700 — openclaw doctor flags anything with group/world bits
+# and gateway silently fails to load auth when permissions are too open.
+# Default umask (022) gives 755 which is wrong. Fix it here so doctor never
+# needs to prompt. We only chmod what WE create — openclaw manages the rest.
+chmod 700 "$OPENCLAW_HOME"
 success "Directories ready."
 
 # ── Step 3: Write .env ────────────────────────────────────────────────────
@@ -120,6 +212,7 @@ cat > "$CONFIG_FILE" <<EOF
   "tools": {}
 }
 EOF
+chmod 600 "$CONFIG_FILE"
 success "Config written."
 
 # ── Step 6: Install gateway daemon ───────────────────────────────────────

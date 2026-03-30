@@ -11,8 +11,7 @@
   --accent:      #FF8C42;
   --accent-dim:  rgba(255,140,66,0.15);
   --accent-glow: rgba(255,140,66,0.28);
-  --cyan:        #FF8C42;
-  --cyan-dim:    rgba(255,140,66,0.1);
+  --accent-dim2: rgba(255,140,66,0.1);
   --green:       #10D981;
   --green-dim:   rgba(16,217,129,0.1);
   --red:         #EF4444;
@@ -111,7 +110,7 @@ body {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--cyan));
+  background: linear-gradient(90deg, var(--accent), var(--accent));
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 0 1px 1px 0;
   box-shadow: 0 0 8px var(--accent-glow);
@@ -888,8 +887,8 @@ body {
 }
 
 .status-pill.running {
-  background: var(--cyan-dim);
-  color: var(--cyan);
+  background: var(--accent-dim2);
+  color: var(--accent);
   border: 1px solid rgba(34,211,238,0.25);
 }
 
@@ -946,7 +945,7 @@ body {
 .log-error   { color: #FC8181; }
 .log-success { color: #68D391; }
 .log-warn    { color: #F6AD55; }
-.log-info    { color: var(--cyan); }
+.log-info    { color: var(--accent); }
 .log-placeholder { color: var(--text-3); font-style: italic; }
 
 .log-cursor {

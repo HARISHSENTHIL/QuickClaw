@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import logoSrc from './assets/octoclaw-logo.webp?inline'
 import Welcome from './steps/Welcome'
 import ProviderModel from './steps/ProviderModel'
 import ApiKey from './steps/ApiKey'
@@ -7,14 +6,6 @@ import Installing from './steps/Installing'
 import Dashboard from './Dashboard'
 
 const NO_KEY_PROVIDERS = ['ollama']
-
-const STEP_PROGRESS = {
-  welcome: 0,
-  provider: 20,
-  apikey: 55,
-  installing: 80,
-  dashboard: 100,
-}
 
 export default function App() {
   const [step, setStep] = useState('welcome')
@@ -49,28 +40,11 @@ export default function App() {
     }
   }
 
-  const progress = STEP_PROGRESS[step] ?? 0
-  const isDashboard = step === 'dashboard'
-
   // Show nothing while checking — avoids flash of the welcome screen
   if (checking) return <div className="app-shell" />
 
   return (
     <div className="app-shell">
-      {!isDashboard && step !== 'apikey' && step !== 'welcome' && step !== 'provider' && step !== 'installing' && (
-        <>
-          <div className="titlebar">
-            <div className="titlebar-brand">
-              <img src={logoSrc} alt="" className="titlebar-logo-img" />
-              <span className="titlebar-name">OctoClaw</span>
-            </div>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: `${progress}%` }} />
-          </div>
-        </>
-      )}
-
       {step === 'welcome' && <Welcome onNext={() => go('provider')} />}
       {step === 'provider' && (
         <ProviderModel config={config} onChange={updateConfig} onNext={handleProviderNext} onBack={() => go('welcome')} />
