@@ -5,10 +5,11 @@ export default function Chat() {
   const [phase, setPhase] = useState('init')
   const [statusMsg, setStatusMsg] = useState('Connecting…')
   const [chatUrl, setChatUrl] = useState(null)
+  const [retryCount, setRetryCount] = useState(0)
   const webviewRef = useRef(null)
   const tokenRef = useRef(null)
 
-  // On mount: read token → ensure gateway is up → show webview
+  // On mount (and on retry): read token → ensure gateway is up → show webview
   useEffect(() => {
     let cancelled = false
 
@@ -44,7 +45,7 @@ export default function Chat() {
 
     init()
     return () => { cancelled = true }
-  }, [])
+  }, [retryCount])
 
   // Auto-inject token into the gateway web UI after page load
   useEffect(() => {
@@ -113,7 +114,7 @@ export default function Chat() {
         <p className="dash-hint">
           Run <code>openclaw gateway start</code> in your terminal, then click Retry.
         </p>
-        <button className="dash-btn-primary" onClick={() => setPhase('init')}>
+        <button className="dash-btn-primary" onClick={() => { setPhase('init'); setRetryCount((c) => c + 1) }}>
           Retry
         </button>
       </div>

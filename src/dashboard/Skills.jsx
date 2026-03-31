@@ -1,15 +1,5 @@
 import { useState, useEffect } from 'react'
 
-// ── Agent capability toggles ──────────────────────────────────────────────
-const CAPABILITY_SKILLS = [
-  { id: 'web_search',   label: 'Web Search',        desc: 'Search the internet for up-to-date info',   icon: '🔍', enabled: true  },
-  { id: 'shell',        label: 'Shell / Terminal',   desc: 'Execute shell commands on your machine',    icon: '💻', enabled: true  },
-  { id: 'file_manager', label: 'File Manager',       desc: 'Read, write and manage local files',        icon: '📁', enabled: true  },
-  { id: 'code_runner',  label: 'Code Runner',        desc: 'Run Python, JS and other code snippets',    icon: '⚡', enabled: false },
-  { id: 'browser',      label: 'Browser Automation', desc: 'Control a headless browser for scraping',   icon: '🌐', enabled: false },
-  { id: 'memory',       label: 'Long-term Memory',   desc: 'Persist knowledge across sessions',         icon: '🧠', enabled: true  },
-]
-
 // To add a new exchange: append an entry here + drop SKILL.md into assets/skills/
 const INTEGRATION_SKILLS = [
   {
@@ -98,10 +88,6 @@ const INTEGRATION_SKILLS = [
 ]
 
 export default function Skills() {
-  const [capabilities, setCapabilities] = useState(CAPABILITY_SKILLS)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-
   const [installedModules, setInstalledModules] = useState({})
 
   useEffect(() => {
@@ -113,20 +99,6 @@ export default function Skills() {
       setInstalledModules(installed)
     }).catch(() => {})
   }, [])
-
-  const toggleCapability = (id) => {
-    setSaved(false)
-    setCapabilities((prev) => prev.map((s) => s.id === id ? { ...s, enabled: !s.enabled } : s))
-  }
-
-  const handleSaveCapabilities = async () => {
-    setSaving(true)
-    const skillMap = Object.fromEntries(capabilities.map((s) => [s.id, { enabled: s.enabled }]))
-    await window.electronAPI?.saveSkillsConfig(skillMap)
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-  }
 
   const handleModulesInstalled = (moduleKeys) => {
     setInstalledModules((prev) => {
@@ -141,34 +113,10 @@ export default function Skills() {
       <div className="dash-page-header">
         <p className="dash-page-label">AGENT</p>
         <h1 className="dash-page-title">Skills</h1>
-        <p className="dash-page-sub">Manage agent capabilities and exchange integrations.</p>
+        <p className="dash-page-sub">Connect exchange integrations to extend the agent.</p>
       </div>
 
-      <p className="skills-section-label">CAPABILITIES</p>
-      <div className="skills-grid">
-        {capabilities.map((skill) => (
-          <button
-            key={skill.id}
-            className={`skill-card${skill.enabled ? ' skill-on' : ''}`}
-            onClick={() => toggleCapability(skill.id)}
-          >
-            <div className="skill-icon">{skill.icon}</div>
-            <div className="skill-info">
-              <span className="skill-name">{skill.label}</span>
-              <span className="skill-desc">{skill.desc}</span>
-            </div>
-            <div className={`skill-toggle${skill.enabled ? ' toggle-on' : ''}`} />
-          </button>
-        ))}
-      </div>
-
-      <div className="skills-footer">
-        <button className="dash-btn-primary" onClick={handleSaveCapabilities} disabled={saving}>
-          {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Capabilities'}
-        </button>
-      </div>
-
-      <p className="skills-section-label" style={{ marginTop: 32 }}>INTEGRATIONS</p>
+      <p className="skills-section-label">INTEGRATIONS</p>
       <div className="integration-list">
         {INTEGRATION_SKILLS.map((skill) => (
           <IntegrationCard

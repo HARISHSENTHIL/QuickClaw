@@ -8,6 +8,7 @@
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build && electron-builder",
     "build:mac": "rm -rf dist/mac-* && vite build && electron-builder --mac --universal",
+    "build:dev": "rm -rf dist/mac-* && vite build && SKIP_NOTARIZE=1 electron-builder --mac --universal",
     "preview": "vite preview"
   },
   "devDependencies": {

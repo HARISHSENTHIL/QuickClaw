@@ -48,6 +48,8 @@ else
   # ── Helper: ensure a suitable Node.js + npm is available ─────────────
   # openclaw requires Node >= 22. nvm installs to ~/.nvm/ so zero sudo
   # needed — solves both "no Node" and npm EACCES permission problems.
+  # No Homebrew fallback — brew install node requires sudo and fails for
+  # non-admin users. nvm is the only path.
   ensure_npm() {
     export NVM_DIR="$HOME/.nvm"
 
@@ -75,36 +77,54 @@ else
     # Clear conflicting npm prefix — breaks nvm if left set
     npm config delete prefix 2>/dev/null || true
 
-    # Install nvm silently — PROFILE=/dev/null stops nvm from touching shell
-    # config files (our PATH fix section handles that below).
-    # The || true is intentional: the nvm installer prints a TTY warning and
-    # exits non-zero when run from a non-interactive shell (Electron spawn).
-    # The warning is harmless — nvm installs correctly regardless.
+    # Install nvm if not already present.
+    # PROFILE=/dev/null stops nvm touching shell RC files (we handle that below).
+    # || true: nvm installer exits non-zero in non-interactive shells but still
+    # installs correctly — the exit code is safe to ignore here.
     if [ ! -s "$NVM_DIR/nvm.sh" ]; then
       info "Downloading nvm..."
       PROFILE=/dev/null curl -fsSL \
         https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash 2>/dev/null || true
     fi
 
-    # Load nvm as a shell function into this session
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    # nvm is a shell function, not a binary — source it into this session.
+    # Also source bash_completion if present (some distros need it for full init).
+    [ -s "$NVM_DIR/nvm.sh" ]          && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" 2>/dev/null || true
 
+    if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+      # nvm download failed (network issue)
+      error "Could not download nvm. Check your internet connection and try again.\nAlternatively, install Node.js v22+ manually from https://nodejs.org"
+    fi
+
+    info "Installing Node.js v22 LTS..."
+
+    # type nvm checks the shell function — reliable in interactive shells but
+    # can silently fail in non-interactive Electron-spawned bash.
+    # Primary: try the shell function. Fallback: invoke nvm.sh directly as a
+    # subprocess so the function scope doesn't matter.
     if type nvm &>/dev/null 2>&1; then
-      info "Installing Node.js v22 LTS..."
       nvm install 22 2>/dev/null || true
       nvm use 22 2>/dev/null || true
       nvm alias default 22 2>/dev/null || true
-      info "Node.js ready."
-    elif command -v brew &>/dev/null; then
-      info "Installing Node.js via Homebrew..."
-      HOMEBREW_NO_AUTO_UPDATE=1 NONINTERACTIVE=1 brew install node --quiet
-      export PATH="$BREW_PREFIX/bin:$PATH"
-      info "Node.js ready."
     else
-      return 1
+      # Shell function not available in this context — call nvm.sh directly
+      bash --norc -c ". '$NVM_DIR/nvm.sh' && nvm install 22 && nvm use 22 && nvm alias default 22" \
+        2>/dev/null || true
     fi
 
-    command -v npm &>/dev/null
+    # Explicitly find the node 22 bin and prepend to PATH.
+    # This works regardless of whether the nvm shell function loaded correctly —
+    # we check the actual binary on disk, not the shell function state.
+    local nvm_node_bin
+    nvm_node_bin=$(ls -d "$NVM_DIR/versions/node"/v22.*/bin 2>/dev/null | sort -V | tail -1)
+    if [ -n "$nvm_node_bin" ] && [ -d "$nvm_node_bin" ]; then
+      export PATH="$nvm_node_bin:$PATH"
+      info "Node.js ready."
+      return 0
+    fi
+
+    error "Node.js v22 installation failed. Please install it manually from https://nodejs.org and try again."
   }
 
   # ── Try 1: official openclaw.ai installer (preferred) ──────────────────

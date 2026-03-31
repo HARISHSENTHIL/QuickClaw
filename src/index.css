@@ -1992,6 +1992,15 @@ code {
   line-height: 1.5;
 }
 
+/* Per-provider key format hint */
+.ak-format-hint {
+  font-size: 12px;
+  color: var(--yellow);
+  margin-top: -10px;
+  margin-bottom: 14px;
+  padding-left: 4px;
+}
+
 /* Install button */
 .ak-install-btn {
   width: 100%;

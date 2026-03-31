@@ -6,46 +6,64 @@ const KEY_HINTS = {
     placeholder: 'sk-proj-...',
     link: 'https://platform.openai.com/api-keys',
     label: 'OpenAI Platform',
+    validate: (k) => /^sk-/.test(k),
+    hint: 'OpenAI keys start with sk-',
   },
   anthropic: {
     placeholder: 'sk-ant-...',
     link: 'https://console.anthropic.com/settings/keys',
     label: 'Anthropic Console',
+    validate: (k) => /^sk-ant-/.test(k),
+    hint: 'Anthropic keys start with sk-ant-',
   },
   google: {
     placeholder: 'AIza...',
     link: 'https://aistudio.google.com/app/apikey',
     label: 'Google AI Studio',
+    validate: (k) => /^AIza/.test(k),
+    hint: 'Google keys start with AIza',
   },
   mistral: {
     placeholder: 'Paste your Mistral key...',
     link: 'https://console.mistral.ai/api-keys',
     label: 'Mistral Console',
+    validate: (k) => k.length >= 32,
+    hint: 'Key looks too short',
   },
   groq: {
     placeholder: 'gsk_...',
     link: 'https://console.groq.com/keys',
     label: 'Groq Console',
+    validate: (k) => /^gsk_/.test(k),
+    hint: 'Groq keys start with gsk_',
   },
   cohere: {
     placeholder: 'Paste your Cohere key...',
     link: 'https://dashboard.cohere.com/api-keys',
     label: 'Cohere Dashboard',
+    validate: (k) => k.length >= 32,
+    hint: 'Key looks too short',
   },
   together: {
     placeholder: 'Paste your Together AI key...',
     link: 'https://api.together.xyz/settings/api-keys',
     label: 'Together Dashboard',
+    validate: (k) => k.length >= 32,
+    hint: 'Key looks too short',
   },
   openrouter: {
     placeholder: 'sk-or-...',
     link: 'https://openrouter.ai/keys',
     label: 'OpenRouter Keys',
+    validate: (k) => /^sk-or-/.test(k),
+    hint: 'OpenRouter keys start with sk-or-',
   },
   ollama: {
     placeholder: null,
     link: null,
     label: null,
+    validate: () => true,
+    hint: null,
   },
 }
 
@@ -76,7 +94,10 @@ function IconShield() {
 export default function ApiKey({ config, onChange, onNext, onBack }) {
   const [show, setShow] = useState(false)
   const hint = KEY_HINTS[config.provider] || KEY_HINTS.openai
-  const canContinue = config.apiKey.trim().length > 10
+  const trimmed = config.apiKey.trim()
+  const isValid = trimmed.length > 0 && hint.validate(trimmed)
+  const showFormatHint = trimmed.length > 5 && !isValid && hint.hint
+  const canContinue = isValid
 
   const openLink = () => {
     if (hint.link) window.electronAPI?.openUrl(hint.link)
@@ -133,6 +154,11 @@ export default function ApiKey({ config, onChange, onNext, onBack }) {
               <IconEye open={show} />
             </button>
           </div>
+
+          {/* Format hint — only shown after 5+ chars if format doesn't match */}
+          {showFormatHint && (
+            <p className="ak-format-hint">{hint.hint}</p>
+          )}
 
           {/* Security note */}
           <div className="ak-security">

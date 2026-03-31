@@ -76,6 +76,7 @@ export default function Installing({ config, onDone }) {
         if (clean.includes('non-interactive mode')) return
         if (clean.includes('not a TTY')) return
         if (clean.includes('Warning:') || clean.includes('warning:')) return
+        if (clean.includes('npm warn') || clean.includes('npm WARN')) return
         // Keep the FIRST meaningful error — later lines are usually less specific
         setErrorMsg((prev) => prev || clean)
       }
