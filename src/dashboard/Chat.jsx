@@ -9,6 +9,12 @@ export default function Chat() {
   const webviewRef = useRef(null)
   const tokenRef = useRef(null)
 
+  // Live stage labels from _ensureGateway — replaces the frozen "Starting gateway…"
+  useEffect(() => {
+    const unsub = window.electronAPI?.onGatewayStage?.((msg) => setStatusMsg(msg))
+    return () => unsub?.()
+  }, [])
+
   // On mount (and on retry): read token → ensure gateway is up → show webview
   useEffect(() => {
     let cancelled = false
@@ -110,7 +116,7 @@ export default function Chat() {
   if (phase === 'failed') {
     return (
       <div className="dash-placeholder">
-        <p className="dash-error">⚠ {statusMsg}</p>
+        <p className="dash-error">{statusMsg}</p>
         <p className="dash-hint">
           Run <code>openclaw gateway start</code> in your terminal, then click Retry.
         </p>

@@ -60,7 +60,7 @@ export default function ConnectApps() {
             <div className="app-card-info">
               <h3 className="app-card-name">Telegram</h3>
               <p className="app-card-desc">
-                {saved ? '✓ Connected — bot is active' : 'Create a dedicated AI bot.'}
+                {saved ? 'Connected — bot is active' : 'Create a dedicated AI bot.'}
               </p>
             </div>
             {!saved && (

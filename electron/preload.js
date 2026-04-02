@@ -2,8 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
   runInstall: (config) => ipcRenderer.send('run-install', config),
-  onLog: (cb) => ipcRenderer.on('install-log', (_, msg) => cb(msg)),
   onDone: (cb) => ipcRenderer.on('install-done', (_, result) => cb(result)),
+  onLog:  (cb) => ipcRenderer.on('install-log',  (_, line)   => cb(line)),
   removeAllListeners: () => {
     ipcRenderer.removeAllListeners('install-log')
     ipcRenderer.removeAllListeners('install-done')
@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkInstalled: () => ipcRenderer.invoke('check-installed'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   ensureGateway: () => ipcRenderer.invoke('ensure-gateway'),
+  onGatewayStage: (cb) => {
+    const handler = (_, msg) => cb(msg)
+    ipcRenderer.on('gateway-stage', handler)
+    return () => ipcRenderer.removeListener('gateway-stage', handler)
+  },
   installIntegrationSkill: (data) => ipcRenderer.invoke('install-integration-skill', data),
   readIntegrationSkills: () => ipcRenderer.invoke('read-integration-skills'),
 })

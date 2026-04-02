@@ -138,6 +138,9 @@ ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
     shell: false,
   })
 
+  // Kill after 8 minutes — prevents infinite hang if gateway commands block
+  const killTimer = setTimeout(() => { try { child.kill('SIGTERM') } catch {} }, 8 * 60 * 1000)
+
   child.stdout.on('data', (data) => {
     data.toString().split('\n').forEach((line) => {
       if (line.trim()) event.reply('install-log', line)
@@ -148,8 +151,12 @@ ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
       if (line.trim()) event.reply('install-log', `[stderr] ${line}`)
     })
   })
-  child.on('close', (code) => event.reply('install-done', { success: code === 0, code }))
+  child.on('close', (code) => {
+    clearTimeout(killTimer)
+    event.reply('install-done', { success: code === 0, code })
+  })
   child.on('error', (err) => {
+    clearTimeout(killTimer)
     event.reply('install-log', `[ERR ] ${err.message}`)
     event.reply('install-done', { success: false })
   })
@@ -250,8 +257,27 @@ ipcMain.handle('ensure-gateway', () => {
   return ensureGatewayInFlight
 })
 
+// Sends a stage label to the renderer so Chat can show live progress
+// instead of a frozen "Starting gateway…" for up to 40 s.
+function emitGatewayStage(msg) {
+  const [win] = BrowserWindow.getAllWindows()
+  if (win && !win.isDestroyed()) win.webContents.send('gateway-stage', msg)
+}
+
 async function _ensureGateway() {
-  if (await probeGateway()) return { success: true }
+  emitGatewayStage('Checking gateway…')
+  if (await probeGateway()) {
+    repairAuthProfiles()
+    return { success: true }
+  }
+
+  // Gateway didn't respond to the single probe — it may still be starting up
+  // (common right after a fresh install). Poll briefly before stopping it.
+  emitGatewayStage('Waiting for gateway…')
+  if (await pollGateway(5, 800)) {
+    repairAuthProfiles()
+    return { success: true }
+  }
 
   const env = buildEnv()
   const run = (args, detach = false) => new Promise((resolve) => {
@@ -265,20 +291,30 @@ async function _ensureGateway() {
     setTimeout(() => resolve(null), detach ? 2000 : 6000)
   })
 
+  emitGatewayStage('Stopping previous instance…')
   await run(['gateway', 'stop'])
   await new Promise((r) => setTimeout(r, 2000))
 
+  emitGatewayStage('Starting gateway…')
   const startErr = await run(['gateway', 'start'], true)
   if (startErr?.code === 'ENOENT') return { success: false, error: 'BINARY_NOT_FOUND' }
-  if (await pollGateway(5, 600)) return { success: true }
+
+  // Poll up to 9 s — slow machines (e.g. M1 with many login items) need 5-8 s.
+  // Old value was 5 × 600 ms = 3 s which triggered unnecessary reinstall on every open.
+  emitGatewayStage('Waiting for gateway to be ready…')
+  if (await pollGateway(15, 600)) return { success: true }
 
   // Service not installed — install LaunchAgent, repair auth, restart
+  emitGatewayStage('Installing gateway service…')
   await run(['gateway', 'stop'])
   await new Promise((r) => setTimeout(r, 1500))
   await run(['gateway', 'install'])
   repairAuthProfiles()
+
+  emitGatewayStage('Starting gateway service…')
   await run(['gateway', 'start'], true)
 
+  emitGatewayStage('Almost ready…')
   return { success: await pollGateway(15, 800) }
 }
 
@@ -385,14 +421,39 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
       toolsContent = upsertSection(toolsContent, '## CoinGecko', section)
     }
 
+    if (envVars.OKX_API_KEY && envVars.OKX_SECRET_KEY && envVars.OKX_PASSPHRASE) {
+      const section = `## OKX Account\n\n- API Key: ${envVars.OKX_API_KEY}\n- Secret Key: ${envVars.OKX_SECRET_KEY}\n- Passphrase: ${envVars.OKX_PASSPHRASE}\n`
+      toolsContent = upsertSection(toolsContent, '## OKX Account', section)
+    }
+
     if (toolsContent.trim()) {
       fs.writeFileSync(toolsPath, toolsContent, 'utf8')
       fs.chmodSync(toolsPath, 0o600)
     }
 
+    // Write API credentials to ~/.openclaw/.env so the gateway process has them
+    // as actual env vars at startup. TOOLS.md tells the LLM what keys exist;
+    // .env is what the skill execution layer uses to sign API requests.
+    // Without this step the agent falls back to fetching data from the internet.
+    const envPath = path.join(home, '.openclaw', '.env')
+    let envContent = ''
+    try { envContent = fs.readFileSync(envPath, 'utf8') } catch {}
+    for (const [key, value] of Object.entries(envVars)) {
+      if (!value) continue
+      const re = new RegExp(`^${key}=.*$`, 'm')
+      if (re.test(envContent)) {
+        envContent = envContent.replace(re, `${key}=${value}`)
+      } else {
+        envContent = envContent.trimEnd() + `\n${key}=${value}\n`
+      }
+    }
+    fs.writeFileSync(envPath, envContent, 'utf8')
+    fs.chmodSync(envPath, 0o600)
+
     // Restart gateway so it loads the newly installed skills.
-    // Skills are snapshotted at startup — no restart = agent never sees them.
-    // stop → 3s wait → start prevents two instances (which causes Telegram 409 loop).
+    // exec tool pairing is pre-approved via tools.exec in openclaw.json so
+    // restarting is safe — pairing is config-level, not runtime session state.
+    // Ordering: stop → repairAuthProfiles → start (gateway reads auth on startup).
     const env = buildEnv()
     const run = (args) => new Promise((resolve) => {
       const child = spawn('openclaw', args, { env, shell: false, stdio: 'ignore' })
@@ -401,9 +462,9 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
       setTimeout(resolve, 6000)
     })
     await run(['gateway', 'stop'])
-    await new Promise((r) => setTimeout(r, 3000))
-    await run(['gateway', 'start'])
+    await new Promise((r) => setTimeout(r, 2000))
     repairAuthProfiles()
+    await run(['gateway', 'start'])
 
     return { success: true }
   } catch (err) { return { success: false, error: err.message } }

@@ -134,6 +134,7 @@ else
     info "Trying official installer via curl..."
     if curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard; then
       INSTALLED=true
+      info "Official installer complete."
     else
       warn "Official installer failed — setting up Node.js and retrying..."
     fi
@@ -229,7 +230,12 @@ cat > "$CONFIG_FILE" <<EOF
       "token": "$GATEWAY_TOKEN"
     }
   },
-  "tools": {}
+  "tools": {
+    "exec": {
+      "security": "full",
+      "ask": "off"
+    }
+  }
 }
 EOF
 chmod 600 "$CONFIG_FILE"

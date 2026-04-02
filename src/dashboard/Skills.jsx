@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import coingeckoImg from '../assets/coingecko.png'
 
 // To add a new exchange: append an entry here + drop SKILL.md into assets/skills/
 const INTEGRATION_SKILLS = [
@@ -27,24 +28,24 @@ const INTEGRATION_SKILLS = [
       },
     ],
     buildEnvVars: (vals) => ({
-      BINANCE_API_KEY:    vals.apiKey.trim(),
+      BINANCE_API_KEY: vals.apiKey.trim(),
       BINANCE_API_SECRET: vals.secretKey.trim(),
     }),
     // Official skills from github.com/binance/binance-skills-hub
     // assetFile = path inside assets/skills/, skillFolder = dest under <workspace>/skills/
     modules: [
-      { id: 'spot',                             label: 'Spot Trading',         assetFile: 'binance/spot.md',                                 skillFolder: 'binance-spot',                    defaultOn: true },
-      { id: 'alpha',                            label: 'Alpha',                assetFile: 'binance/alpha.md',                                skillFolder: 'binance-alpha',                   defaultOn: true },
-      { id: 'assets',                           label: 'Assets',               assetFile: 'binance/assets.md',                               skillFolder: 'binance-assets',                  defaultOn: true },
-      { id: 'convert',                          label: 'Convert',              assetFile: 'binance/convert.md',                              skillFolder: 'binance-convert',                 defaultOn: true },
-      { id: 'margin-trading',                   label: 'Margin Trading',       assetFile: 'binance/margin-trading.md',                       skillFolder: 'binance-margin-trading',          defaultOn: true },
-      { id: 'derivatives-usds-futures',         label: 'USDS Futures',         assetFile: 'binance/derivatives-trading-usds-futures.md',     skillFolder: 'binance-usds-futures',            defaultOn: true },
-      { id: 'derivatives-coin-futures',         label: 'COIN Futures',         assetFile: 'binance/derivatives-trading-coin-futures.md',     skillFolder: 'binance-coin-futures',            defaultOn: true },
-      { id: 'derivatives-options',              label: 'Options',              assetFile: 'binance/derivatives-trading-options.md',          skillFolder: 'binance-options',                 defaultOn: true },
-      { id: 'derivatives-portfolio-margin',     label: 'Portfolio Margin',     assetFile: 'binance/derivatives-trading-portfolio-margin.md', skillFolder: 'binance-portfolio-margin',        defaultOn: true },
+      { id: 'spot', label: 'Spot Trading', assetFile: 'binance/spot.md', skillFolder: 'binance-spot', defaultOn: true },
+      { id: 'alpha', label: 'Alpha', assetFile: 'binance/alpha.md', skillFolder: 'binance-alpha', defaultOn: true },
+      { id: 'assets', label: 'Assets', assetFile: 'binance/assets.md', skillFolder: 'binance-assets', defaultOn: true },
+      { id: 'convert', label: 'Convert', assetFile: 'binance/convert.md', skillFolder: 'binance-convert', defaultOn: true },
+      { id: 'margin-trading', label: 'Margin Trading', assetFile: 'binance/margin-trading.md', skillFolder: 'binance-margin-trading', defaultOn: true },
+      { id: 'derivatives-usds-futures', label: 'USDS Futures', assetFile: 'binance/derivatives-trading-usds-futures.md', skillFolder: 'binance-usds-futures', defaultOn: true },
+      { id: 'derivatives-coin-futures', label: 'COIN Futures', assetFile: 'binance/derivatives-trading-coin-futures.md', skillFolder: 'binance-coin-futures', defaultOn: true },
+      { id: 'derivatives-options', label: 'Options', assetFile: 'binance/derivatives-trading-options.md', skillFolder: 'binance-options', defaultOn: true },
+      { id: 'derivatives-portfolio-margin', label: 'Portfolio Margin', assetFile: 'binance/derivatives-trading-portfolio-margin.md', skillFolder: 'binance-portfolio-margin', defaultOn: true },
       { id: 'derivatives-portfolio-margin-pro', label: 'Portfolio Margin Pro', assetFile: 'binance/derivatives-trading-portfolio-margin-pro.md', skillFolder: 'binance-portfolio-margin-pro', defaultOn: true },
-      { id: 'onchain-pay',                      label: 'On-chain Pay',         assetFile: 'binance/onchain-pay.md',                          skillFolder: 'binance-onchain-pay',             defaultOn: true },
-      { id: 'square-post',                      label: 'Square Post',          assetFile: 'binance/square-post.md',                          skillFolder: 'binance-square-post',             defaultOn: true },
+      { id: 'onchain-pay', label: 'On-chain Pay', assetFile: 'binance/onchain-pay.md', skillFolder: 'binance-onchain-pay', defaultOn: true },
+      { id: 'square-post', label: 'Square Post', assetFile: 'binance/square-post.md', skillFolder: 'binance-square-post', defaultOn: true },
     ],
   },
   {
@@ -65,24 +66,77 @@ const INTEGRATION_SKILLS = [
     ],
     buildEnvVars: (vals) => ({ COINGECKO_API_KEY: vals.apiKey.trim() }),
     modules: [
-      { id: 'core',                  label: 'Core',                assetFile: 'coingecko/core.md',                  skillFolder: 'coingecko-core',                  defaultOn: true  },
-      { id: 'coins',                 label: 'Coins',               assetFile: 'coingecko/coins.md',                 skillFolder: 'coingecko-coins',                 defaultOn: true  },
-      { id: 'global',                label: 'Global Market',       assetFile: 'coingecko/global.md',                skillFolder: 'coingecko-global',                defaultOn: true  },
-      { id: 'categories',            label: 'Categories',          assetFile: 'coingecko/categories.md',            skillFolder: 'coingecko-categories',            defaultOn: true  },
-      { id: 'exchanges',             label: 'Exchanges',           assetFile: 'coingecko/exchanges.md',             skillFolder: 'coingecko-exchanges',             defaultOn: true  },
-      { id: 'coin-history',          label: 'Coin History',        assetFile: 'coingecko/coin-history.md',          skillFolder: 'coingecko-coin-history',          defaultOn: true  },
-      { id: 'coin-supply',           label: 'Coin Supply',         assetFile: 'coingecko/coin-supply.md',           skillFolder: 'coingecko-coin-supply',           defaultOn: true  },
-      { id: 'asset-platforms',       label: 'Asset Platforms',     assetFile: 'coingecko/asset-platforms.md',       skillFolder: 'coingecko-asset-platforms',       defaultOn: true  },
-      { id: 'contract',              label: 'Contract',            assetFile: 'coingecko/contract.md',              skillFolder: 'coingecko-contract',              defaultOn: true  },
-      { id: 'utils',                 label: 'Utils',               assetFile: 'coingecko/utils.md',                 skillFolder: 'coingecko-utils',                 defaultOn: true  },
-      { id: 'derivatives',           label: 'Derivatives',         assetFile: 'coingecko/derivatives.md',           skillFolder: 'coingecko-derivatives',           defaultOn: false },
-      { id: 'nfts',                  label: 'NFTs',                assetFile: 'coingecko/nfts.md',                  skillFolder: 'coingecko-nfts',                  defaultOn: false },
-      { id: 'treasury',              label: 'Treasury',            assetFile: 'coingecko/treasury.md',              skillFolder: 'coingecko-treasury',              defaultOn: false },
-      { id: 'onchain-networks',      label: 'On-chain Networks',   assetFile: 'coingecko/onchain-networks.md',      skillFolder: 'coingecko-onchain-networks',      defaultOn: false },
-      { id: 'onchain-pools',         label: 'On-chain Pools',      assetFile: 'coingecko/onchain-pools.md',         skillFolder: 'coingecko-onchain-pools',         defaultOn: false },
-      { id: 'onchain-tokens',        label: 'On-chain Tokens',     assetFile: 'coingecko/onchain-tokens.md',        skillFolder: 'coingecko-onchain-tokens',        defaultOn: false },
-      { id: 'onchain-categories',    label: 'On-chain Categories', assetFile: 'coingecko/onchain-categories.md',    skillFolder: 'coingecko-onchain-categories',    defaultOn: false },
-      { id: 'onchain-ohlcv-trades',  label: 'On-chain OHLCV',      assetFile: 'coingecko/onchain-ohlcv-trades.md',  skillFolder: 'coingecko-onchain-ohlcv-trades',  defaultOn: false },
+      { id: 'core', label: 'Core', assetFile: 'coingecko/core.md', skillFolder: 'coingecko-core', defaultOn: true },
+      { id: 'coins', label: 'Coins', assetFile: 'coingecko/coins.md', skillFolder: 'coingecko-coins', defaultOn: true },
+      { id: 'global', label: 'Global Market', assetFile: 'coingecko/global.md', skillFolder: 'coingecko-global', defaultOn: true },
+      { id: 'categories', label: 'Categories', assetFile: 'coingecko/categories.md', skillFolder: 'coingecko-categories', defaultOn: true },
+      { id: 'exchanges', label: 'Exchanges', assetFile: 'coingecko/exchanges.md', skillFolder: 'coingecko-exchanges', defaultOn: true },
+      { id: 'coin-history', label: 'Coin History', assetFile: 'coingecko/coin-history.md', skillFolder: 'coingecko-coin-history', defaultOn: true },
+      { id: 'coin-supply', label: 'Coin Supply', assetFile: 'coingecko/coin-supply.md', skillFolder: 'coingecko-coin-supply', defaultOn: true },
+      { id: 'asset-platforms', label: 'Asset Platforms', assetFile: 'coingecko/asset-platforms.md', skillFolder: 'coingecko-asset-platforms', defaultOn: true },
+      { id: 'contract', label: 'Contract', assetFile: 'coingecko/contract.md', skillFolder: 'coingecko-contract', defaultOn: true },
+      { id: 'utils', label: 'Utils', assetFile: 'coingecko/utils.md', skillFolder: 'coingecko-utils', defaultOn: true },
+      { id: 'derivatives', label: 'Derivatives', assetFile: 'coingecko/derivatives.md', skillFolder: 'coingecko-derivatives', defaultOn: false },
+      { id: 'nfts', label: 'NFTs', assetFile: 'coingecko/nfts.md', skillFolder: 'coingecko-nfts', defaultOn: false },
+      { id: 'treasury', label: 'Treasury', assetFile: 'coingecko/treasury.md', skillFolder: 'coingecko-treasury', defaultOn: false },
+      { id: 'onchain-networks', label: 'On-chain Networks', assetFile: 'coingecko/onchain-networks.md', skillFolder: 'coingecko-onchain-networks', defaultOn: false },
+      { id: 'onchain-pools', label: 'On-chain Pools', assetFile: 'coingecko/onchain-pools.md', skillFolder: 'coingecko-onchain-pools', defaultOn: false },
+      { id: 'onchain-tokens', label: 'On-chain Tokens', assetFile: 'coingecko/onchain-tokens.md', skillFolder: 'coingecko-onchain-tokens', defaultOn: false },
+      { id: 'onchain-categories', label: 'On-chain Categories', assetFile: 'coingecko/onchain-categories.md', skillFolder: 'coingecko-onchain-categories', defaultOn: false },
+      { id: 'onchain-ohlcv-trades', label: 'On-chain OHLCV', assetFile: 'coingecko/onchain-ohlcv-trades.md', skillFolder: 'coingecko-onchain-ohlcv-trades', defaultOn: false },
+    ],
+  },
+  {
+    id: 'okx',
+    label: 'OKX',
+    desc: 'DEX swaps, DeFi, wallet, on-chain analytics & security',
+    Icon: OkxIcon,
+    accentColor: '#0066FF',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API Key',
+        placeholder: 'Your OKX API Key',
+        secret: false,
+        validate: (v) => v.trim().length >= 20,
+        errorMsg: 'API key looks too short',
+      },
+      {
+        key: 'secretKey',
+        label: 'Secret Key',
+        placeholder: 'Your OKX Secret Key',
+        secret: true,
+        validate: (v) => v.trim().length >= 20,
+        errorMsg: 'Secret key looks too short',
+      },
+      {
+        key: 'passphrase',
+        label: 'Passphrase',
+        placeholder: 'Your OKX API Passphrase',
+        secret: true,
+        validate: (v) => v.trim().length >= 1,
+        errorMsg: 'Passphrase is required',
+      },
+    ],
+    buildEnvVars: (vals) => ({
+      OKX_API_KEY: vals.apiKey.trim(),
+      OKX_SECRET_KEY: vals.secretKey.trim(),
+      OKX_PASSPHRASE: vals.passphrase.trim(),
+    }),
+    modules: [
+      { id: 'agentic-wallet', label: 'Wallet', assetFile: 'okx/agentic-wallet.md', skillFolder: 'okx-agentic-wallet', defaultOn: true },
+      { id: 'dex-swap', label: 'DEX Swap', assetFile: 'okx/dex-swap.md', skillFolder: 'okx-dex-swap', defaultOn: true },
+      { id: 'dex-market', label: 'DEX Market', assetFile: 'okx/dex-market.md', skillFolder: 'okx-dex-market', defaultOn: true },
+      { id: 'dex-token', label: 'Token Data', assetFile: 'okx/dex-token.md', skillFolder: 'okx-dex-token', defaultOn: true },
+      { id: 'security', label: 'Security', assetFile: 'okx/security.md', skillFolder: 'okx-security', defaultOn: true },
+      { id: 'wallet-portfolio', label: 'Portfolio', assetFile: 'okx/wallet-portfolio.md', skillFolder: 'okx-wallet-portfolio', defaultOn: true },
+      { id: 'onchain-gateway', label: 'Onchain Gateway', assetFile: 'okx/onchain-gateway.md', skillFolder: 'okx-onchain-gateway', defaultOn: true },
+      { id: 'defi-invest', label: 'DeFi Invest', assetFile: 'okx/defi-invest.md', skillFolder: 'okx-defi-invest', defaultOn: false },
+      { id: 'defi-portfolio', label: 'DeFi Portfolio', assetFile: 'okx/defi-portfolio.md', skillFolder: 'okx-defi-portfolio', defaultOn: false },
+      { id: 'dex-signal', label: 'DEX Signals', assetFile: 'okx/dex-signal.md', skillFolder: 'okx-dex-signal', defaultOn: false },
+      { id: 'dex-trenches', label: 'Trenches', assetFile: 'okx/dex-trenches.md', skillFolder: 'okx-dex-trenches', defaultOn: false },
+      { id: 'audit-log', label: 'Audit Log', assetFile: 'okx/audit-log.md', skillFolder: 'okx-audit-log', defaultOn: false },
+      { id: 'x402-payment', label: 'x402 Payment', assetFile: 'okx/x402-payment.md', skillFolder: 'okx-x402-payment', defaultOn: false },
     ],
   },
 ]
@@ -97,7 +151,7 @@ export default function Skills() {
         installed[key] = true
       }
       setInstalledModules(installed)
-    }).catch(() => {})
+    }).catch(() => { })
   }, [])
 
   const handleModulesInstalled = (moduleKeys) => {
@@ -113,7 +167,7 @@ export default function Skills() {
       <div className="dash-page-header">
         <p className="dash-page-label">AGENT</p>
         <h1 className="dash-page-title">Skills</h1>
-        <p className="dash-page-sub">Connect exchange integrations to extend the agent.</p>
+        <p className="dash-page-sub">Connect integrations to extend the agent.</p>
       </div>
 
       <p className="skills-section-label">INTEGRATIONS</p>
@@ -242,8 +296,9 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
                     className="integration-reveal-btn"
                     onClick={() => setRevealed((prev) => ({ ...prev, [f.key]: !prev[f.key] }))}
                     tabIndex={-1}
+                    aria-label={revealed[f.key] ? 'Hide' : 'Show'}
                   >
-                    {revealed[f.key] ? '🙈' : '👁'}
+                    {revealed[f.key] ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                 )}
               </div>
@@ -290,18 +345,45 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
   )
 }
 
+
 function BinanceIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0L7.27 4.73 9.4 6.86 12 4.27l2.6 2.59 2.13-2.13L12 0zM4.73 7.27L2.13 9.87 4.26 12l-2.13 2.13 2.6 2.6 2.13-2.13L9.4 17.14l-2.13 2.13L12 24l4.73-4.73-2.13-2.13L17.14 14.6l2.13 2.13 2.6-2.6L19.74 12l2.13-2.13-2.6-2.6-2.13 2.13L14.6 6.86l2.13-2.13L12 0 4.73 7.27zM12 8.9L15.1 12 12 15.1 8.9 12 12 8.9z"/>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16.624 13.9202l2.7175 2.7154-7.353 7.353-7.353-7.352 2.7175-2.7164 4.6355 4.6595 4.6356-4.6595zm4.6366-4.6366L24 12l-2.7154 2.7164L18.5682 12l2.6924-2.7164zm-9.272.001l2.7163 2.6914-2.7164 2.7174v-.001L9.2721 12l2.7164-2.7154zm-9.2722-.001L5.4088 12l-2.6914 2.6924L0 12l2.7164-2.7164zM11.9885.0115l7.353 7.329-2.7174 2.7154-4.6356-4.6356-4.6355 4.6595-2.7174-2.7154 7.353-7.353z" />
     </svg>
   )
 }
 
 function CoinGeckoIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10S2 17.514 2 12 6.486 2 12 2zm0 2a8 8 0 100 16A8 8 0 0012 4zm-1 4a1 1 0 110 2 1 1 0 010-2zm4 1a1 1 0 110 2 1 1 0 010-2zm-5 3c0-.552.895-1 2-1h2c1.105 0 2 .448 2 1v1c0 1.657-1.343 3-3 3s-3-1.343-3-3v-1z"/>
+    <img src={coingeckoImg} alt="CoinGecko" style={{ width: 22, height: 22, objectFit: 'contain' }} />
+  )
+}
+
+function OkxIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M7.15 8.685C7.18 8.705 7.2 8.745 7.2 8.785v6.44c0 .04-.02.08-.05.1-.029.03-.068.047-.11.05H.16c-.042-.003-.081-.02-.11-.05C.02 15.3.002 15.264 0 15.225V8.785c0-.04.02-.08.05-.1.029-.03.068-.047.11-.05h6.88c.04 0 .08.02.11.05zM4.8 11.035c-.002-.039-.02-.075-.05-.1-.029-.03-.068-.048-.11-.05H2.56c-.04 0-.079.014-.11.04-.03.025-.048.061-.05.1v1.95c0 .04.02.08.05.1.03.04.07.05.11.05h2.08c.04 0 .08-.01.11-.04.03-.025.048-.061.05-.1v-1.95zm16.8 0v1.94c0 .09-.07.15-.16.15h-2.08c-.09 0-.16-.06-.16-.15v-1.94c0-.08.07-.15.16-.15h2.08c.09 0 .16.06.16.15zM19.2 8.785v1.95c0 .08-.07.15-.16.15h-2.08c-.09 0-.16-.07-.16-.15V8.785c0-.08.07-.15.16-.15h2.08c.09 0 .16.07.16.15zM24 8.785v1.95c0 .08-.07.15-.16.15h-2.08c-.09 0-.16-.07-.16-.15V8.785c0-.08.07-.15.16-.15h2.08c.09 0 .16.07.16.15zm-4.8 4.5v1.94c0 .08-.07.15-.16.15h-2.08c-.09 0-.16-.07-.16-.15v-1.95c0-.08.07-.15.16-.15h2.08c.09 0 .16.07.16.15v.01zM24 13.285v1.94c0 .08-.07.15-.16.15h-2.08c-.09 0-.16-.07-.16-.15v-1.95c0-.08.07-.15.16-.15h2.08c.09 0 .16.07.16.15v.01zM15.6 8.785v1.95c0 .08-.07.15-.16.15h-2.08c-.09 0-.16-.07-.16-.15V8.785c0-.08.07-.15.16-.15h2.08c.09 0 .16.07.16.15zm0 4.5v1.94c0 .08-.07.15-.16.15h-2.08c-.09 0-.16-.07-.16-.15v-1.95c0-.08.07-.15.16-.15h2.08c.09 0 .16.07.16.15v.01zM13.2 12.985c-.005.084-.075.15-.16.15H10.8v2.08c0 .04-.02.08-.05.11-.031.026-.07.04-.11.04H8.56c-.044.003-.087-.012-.12-.04-.026-.027-.041-.063-.04-.1V8.775c0-.04.01-.08.04-.1.032-.032.075-.05.12-.05h2.08c.04 0 .08.02.11.05.03.02.05.06.05.1v2.1h2.24c.04 0 .08.01.11.04.03.03.05.07.05.1v1.95l-.04.02z" />
+    </svg>
+  )
+}
+
+function EyeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M10.73 10.73a3 3 0 0 0 4.24 4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
     </svg>
   )
 }

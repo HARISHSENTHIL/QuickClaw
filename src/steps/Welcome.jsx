@@ -47,7 +47,7 @@ const CAPABILITIES = [
 export default function Welcome({ onNext }) {
   const [version, setVersion] = useState('')
   useEffect(() => {
-    window.electronAPI?.getAppVersion().then(setVersion).catch(() => {})
+    window.electronAPI?.getAppVersion().then(setVersion).catch(() => { })
   }, [])
 
   return (
@@ -73,7 +73,7 @@ export default function Welcome({ onNext }) {
         <div className="wv2-card">
           <div className="wv2-card-icon wv2-icon-purple"><IconCube /></div>
           <h3 className="wv2-card-title">Multi-LLM<br />Intelligence Layer</h3>
-          <p className="wv2-card-desc">Route tasks across OpenAI, Anthropic, Groq &amp; more — optimized for crypto workflows.</p>
+          <p className="wv2-card-desc">Route tasks across OpenAI, Anthropic, Groq & more, optimized for crypto workflows.</p>
         </div>
         <div className="wv2-card wv2-card-teal">
           <div className="wv2-card-icon wv2-icon-teal"><IconLock /></div>

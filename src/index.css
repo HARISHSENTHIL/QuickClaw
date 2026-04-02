@@ -1587,6 +1587,19 @@ code {
   flex-shrink: 0;
 }
 
+.integration-logo-wrap {
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.integration-logo-img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+}
+
 .integration-info {
   flex: 1;
   min-width: 0;
@@ -2162,6 +2175,14 @@ code {
 }
 
 .inst-sub-green { color: #10D981; }
+
+.inst-hint {
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: center;
+  margin-top: -4px;
+}
+
 
 /* Success / Error icons */
 .inst-success-icon, .inst-error-icon {
