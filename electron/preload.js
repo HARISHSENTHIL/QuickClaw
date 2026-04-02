@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readConfig: () => ipcRenderer.invoke('read-config'),
   checkInstalled: () => ipcRenderer.invoke('check-installed'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  probeGateway: () => ipcRenderer.invoke('probe-gateway'),
   ensureGateway: () => ipcRenderer.invoke('ensure-gateway'),
   onGatewayStage: (cb) => {
     const handler = (_, msg) => cb(msg)

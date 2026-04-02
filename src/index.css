@@ -1209,6 +1209,21 @@ code {
   flex: 1;
   display: flex;
   overflow: hidden;
+  position: relative;
+}
+
+.chat-connecting-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #555;
+  font-size: 13px;
+  z-index: 10;
 }
 
 .chat-webview {

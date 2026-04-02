@@ -318,6 +318,15 @@ async function _ensureGateway() {
   return { success: await pollGateway(15, 800) }
 }
 
+// Single 300ms probe — used by Chat for optimistic render (non-blocking)
+ipcMain.handle('probe-gateway', () => {
+  return new Promise((resolve) => {
+    const req = http.get({ hostname: '127.0.0.1', port: 18789, path: '/', timeout: 300 }, () => resolve(true))
+    req.on('error', () => resolve(false))
+    req.on('timeout', () => { req.destroy(); resolve(false) })
+  })
+})
+
 ipcMain.handle('read-gateway-token', async () => {
   try {
     const content = fs.readFileSync(path.join(os.homedir(), '.openclaw', '.env'), 'utf8')
@@ -370,7 +379,8 @@ ipcMain.handle('save-skills-config', async (_, skills) => {
 // Reads bundled SKILL.md files from app.asar (app.getAppPath() works in dev + prod).
 // Writes each skill as a folder into <workspace>/skills/<skillFolder>/.
 // Also upserts .env and writes credentials to TOOLS.md so agent reads them automatically.
-// No gateway restart — avoids breaking active Telegram polling session.
+// Restarts gateway via `gateway restart` so new .env credentials take effect.
+// Skills themselves are hot-reloaded by the watcher; restart is for env vars only.
 ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
   try {
     const home = os.homedir()
@@ -450,27 +460,23 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     fs.writeFileSync(envPath, envContent, 'utf8')
     fs.chmodSync(envPath, 0o600)
 
-    // Restart gateway so it loads the newly installed skills.
-    // exec tool pairing is pre-approved via tools.exec in openclaw.json so
-    // restarting is safe — pairing is config-level, not runtime session state.
-    // Ordering: stop → repairAuthProfiles → start (gateway reads auth on startup).
+    // Restart gateway so new .env credentials take effect.
+    // Skills themselves hot-reload via the watcher; restart is only needed for env vars.
     const env = buildEnv()
-    const run = (args) => new Promise((resolve) => {
-      const child = spawn('openclaw', args, { env, shell: false, stdio: 'ignore' })
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
-      setTimeout(resolve, 6000)
+      setTimeout(resolve, 8000)
     })
-    await run(['gateway', 'stop'])
-    await new Promise((r) => setTimeout(r, 2000))
     repairAuthProfiles()
-    await run(['gateway', 'start'])
 
     return { success: true }
   } catch (err) { return { success: false, error: err.message } }
 })
 
-// Reads workspace/skills/ — checks for _meta.json to confirm each skill is installed
+// Scans all gateway skill directories (same precedence order as openclaw gateway).
+// Detects skills installed by our app (_meta.json) and by CLI/ClawHub (SKILL.md only).
 ipcMain.handle('read-integration-skills', async () => {
   try {
     const home = os.homedir()
@@ -480,12 +486,26 @@ ipcMain.handle('read-integration-skills', async () => {
       workspace = config?.agents?.defaults?.workspace || workspace
     } catch {}
 
-    const skillsDir = path.join(workspace, 'skills')
-    if (!fs.existsSync(skillsDir)) return {}
+    const scanDirs = [
+      path.join(workspace, 'skills'),
+      path.join(workspace, '.agents', 'skills'),
+      path.join(home, '.agents', 'skills'),
+      path.join(home, '.openclaw', 'skills'),
+    ]
 
     const installed = {}
-    for (const entry of fs.readdirSync(skillsDir)) {
-      if (fs.existsSync(path.join(skillsDir, entry, '_meta.json'))) installed[entry] = true
+    for (const dir of scanDirs) {
+      if (!fs.existsSync(dir)) continue
+      let entries
+      try { entries = fs.readdirSync(dir) } catch { continue }
+      for (const entry of entries) {
+        const entryPath = path.join(dir, entry)
+        try { if (!fs.statSync(entryPath).isDirectory()) continue } catch { continue }
+        if (fs.existsSync(path.join(entryPath, 'SKILL.md')) ||
+            fs.existsSync(path.join(entryPath, '_meta.json'))) {
+          installed[entry] = true
+        }
+      }
     }
     return installed
   } catch { return {} }
