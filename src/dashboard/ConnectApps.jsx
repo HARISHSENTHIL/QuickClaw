@@ -10,16 +10,33 @@ export default function ConnectApps() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // On mount: check openclaw.json — if Telegram is already configured show CONNECTED
   // This persists the connected state across tab navigation (component remounts)
   useEffect(() => {
     window.electronAPI?.readConfig().then((config) => {
       if (config?.channels?.telegram?.botToken) setSaved(true)
-    }).catch(() => {})
+    }).catch(() => { })
   }, [])
 
   const isValidToken = TELEGRAM_TOKEN_RE.test(botToken.trim())
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    setError(null)
+    const result = await window.electronAPI?.resetTelegramConfig()
+    setDeleting(false)
+    if (result?.success) {
+      setSaved(false)
+      setConfirmDelete(false)
+      setBotToken('')
+    } else {
+      setError(result?.error || 'Failed to remove Telegram config')
+      setConfirmDelete(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!botToken.trim()) return
@@ -54,13 +71,13 @@ export default function ConnectApps() {
           <div className="app-card-header">
             <div className="app-card-icon telegram-icon">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z" />
               </svg>
             </div>
             <div className="app-card-info">
               <h3 className="app-card-name">Telegram</h3>
               <p className="app-card-desc">
-                {saved ? 'Connected — bot is active' : 'Create a dedicated AI bot.'}
+                {saved ? 'Connected bot is active' : 'Create a dedicated AI bot.'}
               </p>
             </div>
             {!saved && (
@@ -71,8 +88,45 @@ export default function ConnectApps() {
                 {telegramExpanded ? 'CANCEL' : 'CONNECT'}
               </button>
             )}
-            {saved && <span className="app-connected-badge">CONNECTED</span>}
+            {saved && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span className="app-connected-badge">CONNECTED</span>
+                <button
+                  className="app-connect-btn app-connect-btn-danger"
+                  onClick={() => { setConfirmDelete(true); setError(null) }}
+                  disabled={deleting}
+                >
+                  REMOVE
+                </button>
+              </div>
+            )}
           </div>
+
+          {saved && confirmDelete && (
+            <div className="app-card-form">
+              <p className="form-hint-warn">
+                This will remove the bot token from openclaw.json and restart the gateway. The Telegram bot will stop working immediately.
+              </p>
+              {error && <p className="form-error">{error}</p>}
+              <div className="form-row" style={{ marginTop: 10 }}>
+                <button
+                  className="dash-btn-primary dash-btn-danger"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Removing…' : 'Confirm Remove'}
+                </button>
+                <button
+                  className="app-connect-btn"
+                  onClick={() => { setConfirmDelete(false); setError(null) }}
+                  disabled={deleting}
+                >
+                  CANCEL
+                </button>
+              </div>
+              {deleting && <p className="form-hint-saving">Removing config and restarting gateway…</p>}
+            </div>
+          )}
 
           {telegramExpanded && !saved && (
             <div className="app-card-form">
@@ -105,7 +159,7 @@ export default function ConnectApps() {
               )}
               {error && <p className="form-error">{error}</p>}
               {saving && (
-                <p className="form-hint-saving">Saving config and restarting gateway — this takes a few seconds…</p>
+                <p className="form-hint-saving">Saving config and restarting gateway this takes a few seconds…</p>
               )}
             </div>
           )}
