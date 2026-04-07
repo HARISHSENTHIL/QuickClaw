@@ -1194,6 +1194,22 @@ code {
 
 .footer-reset:hover { color: #E84040; border-color: #E84040; }
 
+.footer-reset-confirm { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.footer-reset-warn { font-size: 10px; color: #E84040; line-height: 1.4; margin: 0; }
+.footer-reset-actions { display: flex; gap: 6px; }
+.footer-reset-confirm-btn {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  color: #fff; background: #E84040; border: none;
+  border-radius: 6px; padding: 5px 9px; cursor: pointer; flex: 1;
+}
+.footer-reset-confirm-btn:hover { opacity: 0.85; }
+.footer-reset-cancel-btn {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  color: #555; background: none; border: 1px solid #333;
+  border-radius: 6px; padding: 5px 9px; cursor: pointer; flex: 1;
+}
+.footer-reset-cancel-btn:hover { border-color: #555; color: #aaa; }
+
 /* ── Main content ────────────────────────────────────────────────────────── */
 .dash-content {
   flex: 1;
@@ -1215,14 +1231,15 @@ code {
 .chat-connecting-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(10, 10, 10, 0.88);
+  background: rgba(10, 10, 10, 0.92);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  color: #555;
+  gap: 14px;
+  color: #aaa;
   font-size: 13px;
+  letter-spacing: 0.02em;
   z-index: 10;
 }
 
@@ -1241,9 +1258,10 @@ code {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  color: #555;
+  gap: 14px;
+  color: #aaa;
   font-size: 13px;
+  letter-spacing: 0.02em;
 }
 
 .dash-spinner {
@@ -1358,6 +1376,8 @@ code {
 }
 
 .app-connect-btn:hover { opacity: 0.75; }
+.app-connect-btn-danger { color: #c0392b; }
+.app-connect-btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .app-connected-badge {
   font-size: 10px;
@@ -1453,6 +1473,7 @@ code {
 .dash-btn-primary:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
 .dash-btn-primary:active { transform: translateY(0); }
 .dash-btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+.dash-btn-danger { background: #c0392b; }
 
 /* ── Skills ──────────────────────────────────────────────────────────────── */
 .skills-section-label {

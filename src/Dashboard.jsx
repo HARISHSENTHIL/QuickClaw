@@ -14,6 +14,15 @@ const NAV = [
 
 export default function Dashboard({ config, onReset }) {
   const [active, setActive] = useState('chat')
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [resetting, setResetting] = useState(false)
+
+  const handleReset = async () => {
+    setResetting(true)
+    await window.electronAPI?.factoryReset().catch(() => {})
+    setResetting(false)
+    onReset()
+  }
 
   return (
     <div className="dashboard">
@@ -40,13 +49,25 @@ export default function Dashboard({ config, onReset }) {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="footer-info">
-            <span className="footer-provider">{config.provider}</span>
-            <span className="footer-model">{config.model}</span>
-          </div>
-          <button className="footer-reset" onClick={onReset}>
-            RESET
-          </button>
+          {confirmReset ? (
+            <div className="footer-reset-confirm">
+              <p className="footer-reset-warn">{resetting ? 'Clearing data and restarting gateway…' : 'This will delete all integration keys, Telegram config, and restart the setup wizard.'}</p>
+              <div className="footer-reset-actions">
+                <button className="footer-reset-confirm-btn" onClick={handleReset} disabled={resetting}>{resetting ? '…' : 'CONFIRM'}</button>
+                {!resetting && <button className="footer-reset-cancel-btn" onClick={() => setConfirmReset(false)}>CANCEL</button>}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="footer-info">
+                <span className="footer-provider">{config.provider}</span>
+                <span className="footer-model">{config.model}</span>
+              </div>
+              <button className="footer-reset" onClick={() => setConfirmReset(true)}>
+                RESET
+              </button>
+            </>
+          )}
         </div>
       </aside>
 

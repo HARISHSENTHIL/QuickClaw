@@ -264,6 +264,12 @@ function emitGatewayStage(msg) {
   if (win && !win.isDestroyed()) win.webContents.send('gateway-stage', msg)
 }
 
+// Notifies Chat that the gateway is restarting (show loader) or ready (hide loader).
+function emitGatewayRestart(state, msg) {
+  const [win] = BrowserWindow.getAllWindows()
+  if (win && !win.isDestroyed()) win.webContents.send('gateway-restart', { state, msg })
+}
+
 async function _ensureGateway() {
   emitGatewayStage('Checking gateway…')
   if (await probeGateway()) {
@@ -351,6 +357,7 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
     config.channels.telegram = { botToken, dmPolicy: 'open', allowFrom: ['*'] }
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 
+    emitGatewayRestart('restarting', 'Applying Telegram config…')
     const env = buildEnv()
     await new Promise((resolve) => {
       const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
@@ -359,8 +366,31 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
       setTimeout(resolve, 6000)
     })
     repairAuthProfiles()
+    emitGatewayRestart('ready')
     return { success: true }
-  } catch (err) { return { success: false, error: err.message } }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
+})
+
+// Removes channels.telegram from openclaw.json and restarts gateway.
+ipcMain.handle('reset-telegram-config', async () => {
+  try {
+    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+    let config = {}
+    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
+    if (config.channels) delete config.channels.telegram
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+    emitGatewayRestart('restarting', 'Removing Telegram config…')
+    const env = buildEnv()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      child.on('close', resolve)
+      child.on('error', resolve)
+      setTimeout(resolve, 6000)
+    })
+    repairAuthProfiles()
+    emitGatewayRestart('ready')
+    return { success: true }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
 })
 
 // Skills UI prefs stored separately — openclaw.json rejects unknown keys and
@@ -462,6 +492,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
 
     // Restart gateway so new .env credentials take effect.
     // Skills themselves hot-reload via the watcher; restart is only needed for env vars.
+    emitGatewayRestart('restarting', 'Activating skills…')
     const env = buildEnv()
     await new Promise((resolve) => {
       const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
@@ -470,13 +501,133 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
       setTimeout(resolve, 8000)
     })
     repairAuthProfiles()
+    emitGatewayRestart('ready')
 
     return { success: true }
-  } catch (err) { return { success: false, error: err.message } }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
 })
 
 // Scans all gateway skill directories (same precedence order as openclaw gateway).
 // Detects skills installed by our app (_meta.json) and by CLI/ClawHub (SKILL.md only).
+ipcMain.handle('reset-integration-skill', async (_, { envVarKeys, toolsHeading, skillFolders }) => {
+  try {
+    const home = os.homedir()
+    let workspace = path.join(home, '.openclaw', 'workspace')
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
+      workspace = cfg?.agents?.defaults?.workspace || workspace
+    } catch {}
+
+    // Remove skill folders
+    const skillsDir = path.join(workspace, 'skills')
+    for (const folder of skillFolders) {
+      try { fs.rmSync(path.join(skillsDir, folder), { recursive: true, force: true }) } catch {}
+    }
+
+    // Remove section from TOOLS.md
+    const toolsPath = path.join(workspace, 'TOOLS.md')
+    try {
+      let content = fs.readFileSync(toolsPath, 'utf8')
+      const escaped = toolsHeading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      content = content.replace(new RegExp(`${escaped}[\\s\\S]*?(?=\\n## |\\n*$)`), '').trimEnd()
+      if (content.trim()) {
+        fs.writeFileSync(toolsPath, content + '\n', 'utf8')
+      } else {
+        try { fs.unlinkSync(toolsPath) } catch {}
+      }
+    } catch {}
+
+    // Remove env vars from .env
+    const envPath = path.join(home, '.openclaw', '.env')
+    try {
+      let envContent = fs.readFileSync(envPath, 'utf8')
+      for (const key of envVarKeys) {
+        envContent = envContent.replace(new RegExp(`^${key}=.*\\n?`, 'm'), '')
+      }
+      fs.writeFileSync(envPath, envContent.trimEnd() + '\n', 'utf8')
+    } catch {}
+
+    // Restart gateway so env changes take effect
+    emitGatewayRestart('restarting', 'Removing integration…')
+    const env = buildEnv()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      child.on('close', resolve)
+      child.on('error', resolve)
+      setTimeout(resolve, 6000)
+    })
+    repairAuthProfiles()
+    emitGatewayRestart('ready')
+    return { success: true }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
+})
+
+// Full factory reset: wipes telegram config, all integration keys (TOOLS.md + .env),
+// all integration skill folders, then restarts gateway.
+ipcMain.handle('factory-reset', async () => {
+  try {
+    const home = os.homedir()
+
+    // Remove telegram from openclaw.json
+    const configPath = path.join(home, '.openclaw', 'openclaw.json')
+    try {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      if (config.channels) delete config.channels.telegram
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+    } catch {}
+
+    // Resolve workspace
+    let workspace = path.join(home, '.openclaw', 'workspace')
+    try {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      workspace = cfg?.agents?.defaults?.workspace || workspace
+    } catch {}
+
+    // Remove all integration skill folders (binance-*, coingecko-*, okx-*)
+    const skillsDir = path.join(workspace, 'skills')
+    const integrationPrefixes = ['binance-', 'coingecko-', 'okx-']
+    try {
+      for (const entry of fs.readdirSync(skillsDir)) {
+        if (integrationPrefixes.some((p) => entry.startsWith(p))) {
+          try { fs.rmSync(path.join(skillsDir, entry), { recursive: true, force: true }) } catch {}
+        }
+      }
+    } catch {}
+
+    // Wipe TOOLS.md entirely
+    const toolsPath = path.join(workspace, 'TOOLS.md')
+    try { fs.unlinkSync(toolsPath) } catch {}
+
+    // Remove all integration env vars from .env
+    const allIntegrationKeys = [
+      'BINANCE_API_KEY', 'BINANCE_API_SECRET',
+      'COINGECKO_API_KEY',
+      'OKX_API_KEY', 'OKX_SECRET_KEY', 'OKX_PASSPHRASE',
+    ]
+    const envPath = path.join(home, '.openclaw', '.env')
+    try {
+      let envContent = fs.readFileSync(envPath, 'utf8')
+      for (const key of allIntegrationKeys) {
+        envContent = envContent.replace(new RegExp(`^${key}=.*\\n?`, 'm'), '')
+      }
+      fs.writeFileSync(envPath, envContent.trimEnd() + '\n', 'utf8')
+    } catch {}
+
+    // Restart gateway
+    emitGatewayRestart('restarting', 'Resetting…')
+    const env = buildEnv()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      child.on('close', resolve)
+      child.on('error', resolve)
+      setTimeout(resolve, 8000)
+    })
+    repairAuthProfiles()
+    emitGatewayRestart('ready')
+    return { success: true }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
+})
+
 ipcMain.handle('read-integration-skills', async () => {
   try {
     const home = os.homedir()

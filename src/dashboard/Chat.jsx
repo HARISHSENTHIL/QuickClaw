@@ -16,6 +16,23 @@ export default function Chat() {
     return () => unsub?.()
   }, [])
 
+  // Show overlay whenever any action (Skills, Telegram, Reset) restarts the gateway
+  useEffect(() => {
+    const unsub = window.electronAPI?.onGatewayRestart?.((data) => {
+      if (data.state === 'restarting') {
+        setOverlayMsg(data.msg || 'Restarting gateway…')
+        setOverlayVisible(true)
+      } else {
+        // Give webview a moment to reload before hiding
+        setTimeout(() => {
+          webviewRef.current?.reload()
+          setOverlayVisible(false)
+        }, 800)
+      }
+    })
+    return () => unsub?.()
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
