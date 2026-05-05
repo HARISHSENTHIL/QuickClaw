@@ -4,6 +4,7 @@ const { spawn } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const http = require('http')
+const { autoUpdater } = require('electron-updater')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -93,6 +94,30 @@ function createWindow() {
   }
 }
 
+// ── Auto-updater ───────────────────────────────────────────────────────────
+function setupAutoUpdater() {
+  // Silent background check — never pop native dialogs; let the UI handle it
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('update-available', (info) => {
+    const [win] = BrowserWindow.getAllWindows()
+    if (win && !win.isDestroyed()) win.webContents.send('update-available', info)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    const [win] = BrowserWindow.getAllWindows()
+    if (win && !win.isDestroyed()) win.webContents.send('update-downloaded', info)
+  })
+
+  autoUpdater.on('error', () => {})
+
+  // Check after a short delay so the window is fully loaded first
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000)
+}
+
+ipcMain.on('install-update', () => autoUpdater.quitAndInstall(false, true))
+
 app.whenReady().then(() => {
   // Warm the shell PATH cache before any install or gateway spawn.
   // Runs the user's login shell once (~200-800ms) to get their real PATH
@@ -102,6 +127,7 @@ app.whenReady().then(() => {
   // Register activate inside whenReady — prevents the race condition where
   // activate fires before the app is ready (reproducible when running from DMG)
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+  if (!isDev) setupAutoUpdater()
 })
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 

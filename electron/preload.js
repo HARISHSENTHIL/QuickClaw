@@ -33,4 +33,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('gateway-restart', handler)
     return () => ipcRenderer.removeListener('gateway-restart', handler)
   },
+  onUpdateAvailable: (cb) => {
+    const handler = (_, info) => cb(info)
+    ipcRenderer.on('update-available', handler)
+    return () => ipcRenderer.removeListener('update-available', handler)
+  },
+  onUpdateDownloaded: (cb) => {
+    const handler = (_, info) => cb(info)
+    ipcRenderer.on('update-downloaded', handler)
+    return () => ipcRenderer.removeListener('update-downloaded', handler)
+  },
+  installUpdate: () => ipcRenderer.send('install-update'),
 })

@@ -1,6 +1,6 @@
 {
   "name": "octoclaw-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "OctoClaw Desktop Installer",
   "author": "OctoClaw <dev@openledger.xyz>",
   "main": "electron/main.js",
@@ -9,6 +9,7 @@
     "build": "vite build && electron-builder",
     "build:mac": "rm -rf dist/mac-* && vite build && electron-builder --mac --universal",
     "build:dev": "rm -rf dist/mac-* && vite build && SKIP_NOTARIZE=1 electron-builder --mac --universal",
+    "release:mac": "rm -rf dist/mac-* && vite build && electron-builder --mac --universal --publish always",
     "preview": "vite preview"
   },
   "devDependencies": {
@@ -40,6 +41,12 @@
           "arch": [
             "universal"
           ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
         }
       ]
     },
@@ -56,6 +63,12 @@
         "to": "openclaw-install.sh"
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "HARISHSENTHIL",
+      "repo": "QuickClaw",
+      "releaseType": "release"
+    },
     "files": [
       "dist/index.html",
       "dist/assets/**",
@@ -63,5 +76,8 @@
       "assets/**/*",
       "!assets/openclaw-install.sh"
     ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }
