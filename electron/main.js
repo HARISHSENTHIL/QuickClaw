@@ -366,6 +366,7 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
       setTimeout(resolve, 6000)
     })
     repairAuthProfiles()
+    await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
   } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
@@ -388,6 +389,7 @@ ipcMain.handle('reset-telegram-config', async () => {
       setTimeout(resolve, 6000)
     })
     repairAuthProfiles()
+    await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
   } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
@@ -466,6 +468,11 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
       toolsContent = upsertSection(toolsContent, '## OKX Account', section)
     }
 
+    if (envVars.ETH_SKILLS) {
+      const section = `## ETH Skills\n\n- Access: https://ethskills.com\n- Fetch any topic: curl -s https://ethskills.com/<topic>/SKILL.md\n- Installed topics: ship, protocol, gas, wallets, l2s, standards, tools, building-blocks, security, addresses, testing, indexing, frontend-ux, frontend-playbook, orchestration, concepts, why, qa, audit\n- Requires: curl\n`
+      toolsContent = upsertSection(toolsContent, '## ETH Skills', section)
+    }
+
     if (toolsContent.trim()) {
       fs.writeFileSync(toolsPath, toolsContent, 'utf8')
       fs.chmodSync(toolsPath, 0o600)
@@ -501,6 +508,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
       setTimeout(resolve, 8000)
     })
     repairAuthProfiles()
+    await pollGateway(10, 500)
     emitGatewayRestart('ready')
 
     return { success: true }
@@ -557,6 +565,7 @@ ipcMain.handle('reset-integration-skill', async (_, { envVarKeys, toolsHeading, 
       setTimeout(resolve, 6000)
     })
     repairAuthProfiles()
+    await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
   } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
@@ -613,6 +622,14 @@ ipcMain.handle('factory-reset', async () => {
       fs.writeFileSync(envPath, envContent.trimEnd() + '\n', 'utf8')
     } catch {}
 
+    // Clear chat sessions
+    const sessionsDir = path.join(home, '.openclaw', 'agents', 'main', 'sessions')
+    try {
+      for (const entry of fs.readdirSync(sessionsDir)) {
+        try { fs.rmSync(path.join(sessionsDir, entry), { recursive: true, force: true }) } catch {}
+      }
+    } catch {}
+
     // Restart gateway
     emitGatewayRestart('restarting', 'Resetting…')
     const env = buildEnv()
@@ -623,6 +640,7 @@ ipcMain.handle('factory-reset', async () => {
       setTimeout(resolve, 8000)
     })
     repairAuthProfiles()
+    await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
   } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }

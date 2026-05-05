@@ -1,6 +1,10 @@
 const { notarize } = require('@electron/notarize')
 
 exports.default = async function notarizing(context) {
+  if (process.env.SKIP_NOTARIZE === '1') {
+    console.log('Notarization skipped (SKIP_NOTARIZE=1)')
+    return
+  }
   if (context.electronPlatformName !== 'darwin') return
 
   // Universal builds call afterSign once per arch slice before merging.

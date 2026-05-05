@@ -73,7 +73,7 @@ export default function Dashboard({ config, onReset }) {
 
       {/* Main content — always mounted, toggled with CSS so Chat never loses session */}
       <main className="dash-content">
-        <div style={{ display: active === 'chat'    ? 'contents' : 'none' }}><Chat config={config} /></div>
+        <div style={{ display: active === 'chat'    ? 'contents' : 'none' }}><Chat config={config} isActive={active === 'chat'} /></div>
         <div style={{ display: active === 'connect' ? 'contents' : 'none' }}><ConnectApps /></div>
         <div style={{ display: active === 'skills'  ? 'contents' : 'none' }}><Skills /></div>
         <div style={{ display: active === 'balance' ? 'contents' : 'none' }}><Balance /></div>

@@ -91,6 +91,38 @@ const INTEGRATION_SKILLS = [
     ],
   },
   {
+    id: 'eth',
+    label: 'Ethereum',
+    desc: 'Smart contracts, DeFi, L2s, gas, wallets & onchain dev',
+    Icon: EthereumIcon,
+    accentColor: '#627EEA',
+    fields: [],
+    envVarKeys: ['ETH_SKILLS'],
+    toolsHeading: '## ETH Skills',
+    buildEnvVars: () => ({ ETH_SKILLS: 'true' }),
+    modules: [
+      { id: 'ship', label: 'Ship', assetFile: 'eth/ship.md', skillFolder: 'eth-ship', defaultOn: true },
+      { id: 'protocol', label: 'Protocol', assetFile: 'eth/protocol.md', skillFolder: 'eth-protocol', defaultOn: true },
+      { id: 'gas', label: 'Gas & Costs', assetFile: 'eth/gas.md', skillFolder: 'eth-gas', defaultOn: true },
+      { id: 'wallets', label: 'Wallets', assetFile: 'eth/wallets.md', skillFolder: 'eth-wallets', defaultOn: true },
+      { id: 'l2s', label: 'Layer 2s', assetFile: 'eth/l2s.md', skillFolder: 'eth-l2s', defaultOn: true },
+      { id: 'standards', label: 'Standards', assetFile: 'eth/standards.md', skillFolder: 'eth-standards', defaultOn: true },
+      { id: 'tools', label: 'Tools', assetFile: 'eth/tools.md', skillFolder: 'eth-tools', defaultOn: true },
+      { id: 'building-blocks', label: 'Money Legos', assetFile: 'eth/building-blocks.md', skillFolder: 'eth-building-blocks', defaultOn: true },
+      { id: 'security', label: 'Security', assetFile: 'eth/security.md', skillFolder: 'eth-security', defaultOn: true },
+      { id: 'addresses', label: 'Addresses', assetFile: 'eth/addresses.md', skillFolder: 'eth-addresses', defaultOn: true },
+      { id: 'testing', label: 'Testing', assetFile: 'eth/testing.md', skillFolder: 'eth-testing', defaultOn: false },
+      { id: 'indexing', label: 'Indexing', assetFile: 'eth/indexing.md', skillFolder: 'eth-indexing', defaultOn: false },
+      { id: 'frontend-ux', label: 'Frontend UX', assetFile: 'eth/frontend-ux.md', skillFolder: 'eth-frontend-ux', defaultOn: false },
+      { id: 'frontend-playbook', label: 'Frontend Playbook', assetFile: 'eth/frontend-playbook.md', skillFolder: 'eth-frontend-playbook', defaultOn: false },
+      { id: 'orchestration', label: 'Orchestration', assetFile: 'eth/orchestration.md', skillFolder: 'eth-orchestration', defaultOn: false },
+      { id: 'concepts', label: 'Concepts', assetFile: 'eth/concepts.md', skillFolder: 'eth-concepts', defaultOn: false },
+      { id: 'why', label: 'Why Ethereum', assetFile: 'eth/why.md', skillFolder: 'eth-why', defaultOn: false },
+      { id: 'qa', label: 'QA', assetFile: 'eth/qa.md', skillFolder: 'eth-qa', defaultOn: false },
+      { id: 'audit', label: 'Audit', assetFile: 'eth/audit.md', skillFolder: 'eth-audit', defaultOn: false },
+    ],
+  },
+  {
     id: 'okx',
     label: 'OKX',
     desc: 'DEX swaps, DeFi, wallet, on-chain analytics & security',
@@ -411,6 +443,19 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled, onModule
   )
 }
 
+
+function EthereumIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 2L6 16.5l10 5.9 10-5.9z" opacity="0.9" />
+      <path d="M6 16.5l10 5.9v-20.4z" opacity="0.6" />
+      <path d="M16 22.4L6 16.5l10 13.5z" opacity="0.9" />
+      <path d="M16 30L26 16.5 16 22.4z" opacity="0.6" />
+      <path d="M16 22.4l10-5.9-10-5.9z" opacity="0.4" />
+      <path d="M6 16.5l10-5.9v11.8z" opacity="0.4" />
+    </svg>
+  )
+}
 
 function BinanceIcon() {
   return (

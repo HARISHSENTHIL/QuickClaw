@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function Chat() {
+export default function Chat({ isActive }) {
   const [phase, setPhase] = useState('init')   // init | ready | failed
   const [failMsg, setFailMsg] = useState('')
   const [overlayMsg, setOverlayMsg] = useState('Connecting…')
@@ -9,6 +9,7 @@ export default function Chat() {
   const [retryCount, setRetryCount] = useState(0)
   const webviewRef = useRef(null)
   const tokenRef = useRef(null)
+  const pendingReloadRef = useRef(false)
 
   // Live stage labels while ensureGateway runs
   useEffect(() => {
@@ -23,15 +24,29 @@ export default function Chat() {
         setOverlayMsg(data.msg || 'Restarting gateway…')
         setOverlayVisible(true)
       } else {
-        // Give webview a moment to reload before hiding
-        setTimeout(() => {
+        // By the time 'ready' fires, main.js has already confirmed the gateway is up
+        // (pollGateway passed). We only need to reload the webview.
+        // If Chat tab is visible: reload now, overlay clears on did-finish-load.
+        // If tab is hidden: defer to avoid Electron black-screen repaint bug
+        // (webviews loaded inside display:none don't repaint when revealed).
+        if (isActive) {
           webviewRef.current?.reload()
-          setOverlayVisible(false)
-        }, 800)
+        } else {
+          pendingReloadRef.current = true
+        }
       }
     })
     return () => unsub?.()
-  }, [])
+  }, [isActive])
+
+  // When user switches back to Chat tab, fire any pending reload that was deferred
+  // while the tab was hidden (avoids Electron webview black-screen repaint bug).
+  useEffect(() => {
+    if (isActive && pendingReloadRef.current) {
+      pendingReloadRef.current = false
+      setTimeout(() => { webviewRef.current?.reload() }, 200)
+    }
+  }, [isActive])
 
   useEffect(() => {
     let cancelled = false
