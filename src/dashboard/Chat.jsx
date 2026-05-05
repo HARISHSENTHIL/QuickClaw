@@ -1,50 +1,98 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function Chat() {
-  // 'init' → 'starting' → 'ready' | 'failed'
-  const [phase, setPhase] = useState('init')
-  const [statusMsg, setStatusMsg] = useState('Connecting…')
+export default function Chat({ isActive }) {
+  const [phase, setPhase] = useState('init')   // init | ready | failed
+  const [failMsg, setFailMsg] = useState('')
+  const [overlayMsg, setOverlayMsg] = useState('Connecting…')
+  const [overlayVisible, setOverlayVisible] = useState(false)
   const [chatUrl, setChatUrl] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
   const webviewRef = useRef(null)
   const tokenRef = useRef(null)
+  const pendingReloadRef = useRef(false)
 
-  // Live stage labels from _ensureGateway — replaces the frozen "Starting gateway…"
+  // Live stage labels while ensureGateway runs
   useEffect(() => {
-    const unsub = window.electronAPI?.onGatewayStage?.((msg) => setStatusMsg(msg))
+    const unsub = window.electronAPI?.onGatewayStage?.((msg) => setOverlayMsg(msg))
     return () => unsub?.()
   }, [])
 
-  // On mount (and on retry): read token → ensure gateway is up → show webview
+  // Show overlay whenever any action (Skills, Telegram, Reset) restarts the gateway
+  useEffect(() => {
+    const unsub = window.electronAPI?.onGatewayRestart?.((data) => {
+      if (data.state === 'restarting') {
+        setOverlayMsg(data.msg || 'Restarting gateway…')
+        setOverlayVisible(true)
+      } else {
+        // By the time 'ready' fires, main.js has already confirmed the gateway is up
+        // (pollGateway passed). We only need to reload the webview.
+        // If Chat tab is visible: reload now, overlay clears on did-finish-load.
+        // If tab is hidden: defer to avoid Electron black-screen repaint bug
+        // (webviews loaded inside display:none don't repaint when revealed).
+        if (isActive) {
+          webviewRef.current?.reload()
+        } else {
+          pendingReloadRef.current = true
+        }
+      }
+    })
+    return () => unsub?.()
+  }, [isActive])
+
+  // When user switches back to Chat tab, fire any pending reload that was deferred
+  // while the tab was hidden (avoids Electron webview black-screen repaint bug).
+  useEffect(() => {
+    if (isActive && pendingReloadRef.current) {
+      pendingReloadRef.current = false
+      setTimeout(() => { webviewRef.current?.reload() }, 200)
+    }
+  }, [isActive])
+
   useEffect(() => {
     let cancelled = false
 
     async function init() {
-      // 1. Read the gateway token
+      // 1. Read token (fast file read — ~10ms)
       const tok = await window.electronAPI?.readGatewayToken().catch(() => null)
       if (cancelled) return
-      tokenRef.current = tok
 
-      // 2. Auto-start gateway if not running (polls until ready, ~12 s max)
-      setPhase('starting')
-      setStatusMsg('Starting gateway…')
+      if (!tok) {
+        setFailMsg('Gateway token not found. Your ~/.openclaw/.env may be missing or corrupted. Restart the app — if the issue persists, use the RESET button to re-run setup.')
+        setPhase('failed')
+        return
+      }
+
+      // 2. Render WebView immediately — don't wait for gateway
+      tokenRef.current = tok
+      setChatUrl(`http://127.0.0.1:18789/?token=${tok}`)
+      setOverlayMsg('Connecting…')
+      setOverlayVisible(true)
+      setPhase('ready')
+
+      // 3. Single 300ms probe in background — non-blocking
+      const alive = await window.electronAPI?.probeGateway().catch(() => false)
+      if (cancelled) return
+
+      if (alive) {
+        // Gateway up — overlay clears on did-finish-load
+        return
+      }
+
+      // 4. Not responding — start it
+      setOverlayMsg('Starting gateway…')
       const result = await window.electronAPI?.ensureGateway().catch(() => ({ success: false }))
       if (cancelled) return
 
       if (result?.success) {
-        if (!tok) {
-          // Token missing — loading webview without it causes "1008 unauthorized" disconnect
-          setStatusMsg('Gateway token not found. Your ~/.openclaw/.env may be missing or corrupted. Please restart the app — if the issue persists, use the RESET button to re-run setup.')
-          setPhase('failed')
-          return
-        }
-        setChatUrl(`http://127.0.0.1:18789/?token=${tok}`)
-        setPhase('ready')
+        webviewRef.current?.reload()
+        // overlay clears on did-finish-load after reload
       } else if (result?.error === 'BINARY_NOT_FOUND') {
-        setStatusMsg('openclaw binary not found — please re-run setup')
+        setOverlayVisible(false)
+        setFailMsg('openclaw binary not found — please re-run setup')
         setPhase('failed')
       } else {
-        setStatusMsg('Gateway failed to start')
+        setOverlayVisible(false)
+        setFailMsg('Gateway failed to start')
         setPhase('failed')
       }
     }
@@ -53,15 +101,15 @@ export default function Chat() {
     return () => { cancelled = true }
   }, [retryCount])
 
-  // Auto-inject token into the gateway web UI after page load
+  // Clear overlay + inject token once WebView finishes loading
   useEffect(() => {
     if (phase !== 'ready' || !chatUrl) return
     const webview = webviewRef.current
     if (!webview) return
 
-    const inject = () => {
+    const onLoad = () => {
+      setOverlayVisible(false)
       const tok = tokenRef.current
-
       if (!tok) return
       webview.executeJavaScript(`
         (function () {
@@ -100,15 +148,15 @@ export default function Chat() {
       `).catch(() => {})
     }
 
-    webview.addEventListener('did-finish-load', inject)
-    return () => webview.removeEventListener('did-finish-load', inject)
+    webview.addEventListener('did-finish-load', onLoad)
+    return () => webview.removeEventListener('did-finish-load', onLoad)
   }, [phase, chatUrl])
 
-  if (phase === 'init' || phase === 'starting') {
+  if (phase === 'init') {
     return (
       <div className="dash-placeholder">
         <div className="dash-spinner" />
-        <p>{statusMsg}</p>
+        <p>Loading…</p>
       </div>
     )
   }
@@ -116,7 +164,7 @@ export default function Chat() {
   if (phase === 'failed') {
     return (
       <div className="dash-placeholder">
-        <p className="dash-error">{statusMsg}</p>
+        <p className="dash-error">{failMsg}</p>
         <p className="dash-hint">
           Run <code>openclaw gateway start</code> in your terminal, then click Retry.
         </p>
@@ -135,6 +183,12 @@ export default function Chat() {
         className="chat-webview"
         allowpopups="true"
       />
+      {overlayVisible && (
+        <div className="chat-connecting-overlay">
+          <div className="dash-spinner" />
+          <p>{overlayMsg}</p>
+        </div>
+      )}
     </div>
   )
 }

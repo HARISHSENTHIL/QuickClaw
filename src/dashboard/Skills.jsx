@@ -9,6 +9,8 @@ const INTEGRATION_SKILLS = [
     desc: 'Spot, derivatives, margin, convert & more',
     Icon: BinanceIcon,
     accentColor: '#F0B90B',
+    envVarKeys: ['BINANCE_API_KEY', 'BINANCE_API_SECRET'],
+    toolsHeading: '## Binance Accounts',
     fields: [
       {
         key: 'apiKey',
@@ -58,12 +60,14 @@ const INTEGRATION_SKILLS = [
       {
         key: 'apiKey',
         label: 'API Key (optional)',
-        placeholder: 'Demo or Pro key — leave blank for keyless (10 req/min)',
+        placeholder: 'Demo or Pro key leave blank for keyless (10 req/min)',
         secret: false,
         validate: (v) => v.trim().length === 0 || v.trim().length >= 10,
         errorMsg: 'Key looks too short',
       },
     ],
+    envVarKeys: ['COINGECKO_API_KEY'],
+    toolsHeading: '## CoinGecko',
     buildEnvVars: (vals) => ({ COINGECKO_API_KEY: vals.apiKey.trim() }),
     modules: [
       { id: 'core', label: 'Core', assetFile: 'coingecko/core.md', skillFolder: 'coingecko-core', defaultOn: true },
@@ -84,6 +88,38 @@ const INTEGRATION_SKILLS = [
       { id: 'onchain-tokens', label: 'On-chain Tokens', assetFile: 'coingecko/onchain-tokens.md', skillFolder: 'coingecko-onchain-tokens', defaultOn: false },
       { id: 'onchain-categories', label: 'On-chain Categories', assetFile: 'coingecko/onchain-categories.md', skillFolder: 'coingecko-onchain-categories', defaultOn: false },
       { id: 'onchain-ohlcv-trades', label: 'On-chain OHLCV', assetFile: 'coingecko/onchain-ohlcv-trades.md', skillFolder: 'coingecko-onchain-ohlcv-trades', defaultOn: false },
+    ],
+  },
+  {
+    id: 'eth',
+    label: 'Ethereum',
+    desc: 'Smart contracts, DeFi, L2s, gas, wallets & onchain dev',
+    Icon: EthereumIcon,
+    accentColor: '#627EEA',
+    fields: [],
+    envVarKeys: ['ETH_SKILLS'],
+    toolsHeading: '## ETH Skills',
+    buildEnvVars: () => ({ ETH_SKILLS: 'true' }),
+    modules: [
+      { id: 'ship', label: 'Ship', assetFile: 'eth/ship.md', skillFolder: 'eth-ship', defaultOn: true },
+      { id: 'protocol', label: 'Protocol', assetFile: 'eth/protocol.md', skillFolder: 'eth-protocol', defaultOn: true },
+      { id: 'gas', label: 'Gas & Costs', assetFile: 'eth/gas.md', skillFolder: 'eth-gas', defaultOn: true },
+      { id: 'wallets', label: 'Wallets', assetFile: 'eth/wallets.md', skillFolder: 'eth-wallets', defaultOn: true },
+      { id: 'l2s', label: 'Layer 2s', assetFile: 'eth/l2s.md', skillFolder: 'eth-l2s', defaultOn: true },
+      { id: 'standards', label: 'Standards', assetFile: 'eth/standards.md', skillFolder: 'eth-standards', defaultOn: true },
+      { id: 'tools', label: 'Tools', assetFile: 'eth/tools.md', skillFolder: 'eth-tools', defaultOn: true },
+      { id: 'building-blocks', label: 'Money Legos', assetFile: 'eth/building-blocks.md', skillFolder: 'eth-building-blocks', defaultOn: true },
+      { id: 'security', label: 'Security', assetFile: 'eth/security.md', skillFolder: 'eth-security', defaultOn: true },
+      { id: 'addresses', label: 'Addresses', assetFile: 'eth/addresses.md', skillFolder: 'eth-addresses', defaultOn: true },
+      { id: 'testing', label: 'Testing', assetFile: 'eth/testing.md', skillFolder: 'eth-testing', defaultOn: false },
+      { id: 'indexing', label: 'Indexing', assetFile: 'eth/indexing.md', skillFolder: 'eth-indexing', defaultOn: false },
+      { id: 'frontend-ux', label: 'Frontend UX', assetFile: 'eth/frontend-ux.md', skillFolder: 'eth-frontend-ux', defaultOn: false },
+      { id: 'frontend-playbook', label: 'Frontend Playbook', assetFile: 'eth/frontend-playbook.md', skillFolder: 'eth-frontend-playbook', defaultOn: false },
+      { id: 'orchestration', label: 'Orchestration', assetFile: 'eth/orchestration.md', skillFolder: 'eth-orchestration', defaultOn: false },
+      { id: 'concepts', label: 'Concepts', assetFile: 'eth/concepts.md', skillFolder: 'eth-concepts', defaultOn: false },
+      { id: 'why', label: 'Why Ethereum', assetFile: 'eth/why.md', skillFolder: 'eth-why', defaultOn: false },
+      { id: 'qa', label: 'QA', assetFile: 'eth/qa.md', skillFolder: 'eth-qa', defaultOn: false },
+      { id: 'audit', label: 'Audit', assetFile: 'eth/audit.md', skillFolder: 'eth-audit', defaultOn: false },
     ],
   },
   {
@@ -118,6 +154,8 @@ const INTEGRATION_SKILLS = [
         errorMsg: 'Passphrase is required',
       },
     ],
+    envVarKeys: ['OKX_API_KEY', 'OKX_SECRET_KEY', 'OKX_PASSPHRASE'],
+    toolsHeading: '## OKX Account',
     buildEnvVars: (vals) => ({
       OKX_API_KEY: vals.apiKey.trim(),
       OKX_SECRET_KEY: vals.secretKey.trim(),
@@ -162,6 +200,14 @@ export default function Skills() {
     })
   }
 
+  const handleModulesDeleted = (moduleKeys) => {
+    setInstalledModules((prev) => {
+      const next = { ...prev }
+      moduleKeys.forEach((k) => { delete next[k] })
+      return next
+    })
+  }
+
   return (
     <div className="dash-page">
       <div className="dash-page-header">
@@ -178,6 +224,7 @@ export default function Skills() {
             skill={skill}
             installedModules={installedModules}
             onModulesInstalled={handleModulesInstalled}
+            onModulesDeleted={handleModulesDeleted}
           />
         ))}
       </div>
@@ -185,8 +232,8 @@ export default function Skills() {
   )
 }
 
-function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
-  const { Icon, label, desc, accentColor, fields, modules, buildEnvVars } = skill
+function IntegrationCard({ skill, installedModules, onModulesInstalled, onModulesDeleted }) {
+  const { Icon, label, desc, accentColor, fields, modules, buildEnvVars, envVarKeys, toolsHeading } = skill
 
   const connectedModuleKeys = modules.filter((m) => installedModules[m.skillFolder]).map((m) => m.skillFolder)
   const isConnected = connectedModuleKeys.length > 0
@@ -201,6 +248,8 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
 
   const [installing, setInstalling] = useState(false)
   const [error, setError] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const setField = (key, val) => {
     setValues((prev) => ({ ...prev, [key]: val }))
@@ -248,6 +297,25 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
     }
   }
 
+  const handleDelete = async () => {
+    setDeleting(true)
+    setError(null)
+    const result = await window.electronAPI?.resetIntegrationSkill({
+      envVarKeys,
+      toolsHeading,
+      skillFolders: modules.map((m) => m.skillFolder),
+    })
+    setDeleting(false)
+    if (result?.success) {
+      onModulesDeleted(modules.map((m) => m.skillFolder))
+      setConfirmDelete(false)
+      setExpanded(false)
+    } else {
+      setError(result?.error || 'Failed to remove integration')
+      setConfirmDelete(false)
+    }
+  }
+
   return (
     <div className={`integration-card${expanded ? ' integration-card-open' : ''}`}>
       <div className="integration-card-header">
@@ -265,8 +333,12 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
         {isConnected ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span className="integration-badge">ACTIVE</span>
-            <button className="integration-connect-btn" onClick={() => setExpanded((v) => !v)}>
-              {expanded ? 'CLOSE' : 'MANAGE'}
+            <button
+              className="integration-connect-btn app-connect-btn-danger"
+              onClick={() => { setConfirmDelete(true); setExpanded(true); setError(null) }}
+              disabled={deleting}
+            >
+              REMOVE
             </button>
           </div>
         ) : (
@@ -276,7 +348,33 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
         )}
       </div>
 
-      {expanded && (
+      {expanded && confirmDelete && (
+        <div className="integration-form">
+          <p className="form-hint-warn">
+            This will remove all {label} API keys and skill modules. The agent will lose access to {label} immediately.
+          </p>
+          {error && <p className="form-error">{error}</p>}
+          <div className="form-row" style={{ marginTop: 10 }}>
+            <button
+              className="dash-btn-primary dash-btn-danger"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Removing…' : 'Confirm Remove'}
+            </button>
+            <button
+              className="integration-connect-btn"
+              onClick={() => { setConfirmDelete(false); setExpanded(false); setError(null) }}
+              disabled={deleting}
+            >
+              CANCEL
+            </button>
+          </div>
+          {deleting && <p className="form-hint-saving">Removing keys and restarting gateway…</p>}
+        </div>
+      )}
+
+      {expanded && !confirmDelete && (
         <div className="integration-form">
           {fields.map((f) => (
             <div key={f.key} className="integration-field">
@@ -329,7 +427,7 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
           </div>
 
           {error && <p className="form-error">{error}</p>}
-          {installing && <p className="form-hint-saving">Installing modules — this may take a moment…</p>}
+          {installing && <p className="form-hint-saving">Installing modules this may take a moment…</p>}
 
           <button
             className="dash-btn-primary"
@@ -345,6 +443,19 @@ function IntegrationCard({ skill, installedModules, onModulesInstalled }) {
   )
 }
 
+
+function EthereumIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 2L6 16.5l10 5.9 10-5.9z" opacity="0.9" />
+      <path d="M6 16.5l10 5.9v-20.4z" opacity="0.6" />
+      <path d="M16 22.4L6 16.5l10 13.5z" opacity="0.9" />
+      <path d="M16 30L26 16.5 16 22.4z" opacity="0.6" />
+      <path d="M16 22.4l10-5.9-10-5.9z" opacity="0.4" />
+      <path d="M6 16.5l10-5.9v11.8z" opacity="0.4" />
+    </svg>
+  )
+}
 
 function BinanceIcon() {
   return (

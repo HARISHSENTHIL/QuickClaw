@@ -1,170 +1,213 @@
-# OctoClaw Desktop
+App Launch
 
-A one-click desktop installer and dashboard for [OpenClaw](https://openclaw.ai). Built with Electron + React.
+  Electron starts
+    └── resolveShellPath()
+          └── spawns user's login shell (zsh/bash/fish) with -ilc
+          └── extracts real PATH (nvm, Homebrew, volta, asdf, etc.)
+          └── cached for app lifetime — prevents ENOENT on every spawn
+    └── createWindow()
+          └── BrowserWindow 800×620, hiddenInset titlebar
+          └── webviewTag: true (needed for Chat WebView)
+          └── contextIsolation: true, nodeIntegration: false (secure)
+          └── loads Vite dev server (dev) or dist/index.html (prod)
 
----
+  ---
+  2. First Screen — App.jsx (Wizard State Machine)
 
-## How to Run
+  App.jsx mounts
+    └── checkInstalled() IPC
+          └── reads ~/.openclaw/openclaw.json + ~/.openclaw/.env
+          ├── EXISTS → skip wizard → jump to Dashboard
+          │     └── resizeWindow(1100×720)
+          └── NOT EXISTS → start wizard (800×620)
 
-**Prerequisites:** Node.js, pnpm
+  ---
+  3. Wizard Flow (First-time setup)
 
-```bash
-pnpm install
-pnpm run dev        # development
-pnpm run build:mac  # build .dmg
-```
+  Step 1: Welcome.jsx
+    └── user clicks "Get Started"
 
----
+  Step 2: ProviderModel.jsx
+    └── user picks provider (OpenAI, Anthropic, Google, Mistral,
+          Groq, Cohere, Together, OpenRouter, Ollama)
+    └── user picks model for that provider
 
-## Architecture
+  Step 3: ApiKey.jsx  ← skipped for Ollama
+    └── user enters API key
 
-```
-openclaw-desktop/
-├── electron/
-│   ├── main.js       — main process, all IPC handlers, child process spawning
-│   └── preload.js    — secure context bridge (renderer ↔ main)
-├── src/
-│   ├── App.jsx       — root component, wizard state machine, startup check
-│   ├── Dashboard.jsx — dashboard shell with sidebar nav
-│   ├── steps/        — Welcome, ProviderModel, ApiKey, Installing
-│   └── dashboard/    — Chat, ConnectApps, Skills, Balance
-└── assets/
-    └── openclaw-install.sh — parameterized bash installer
-```
+  Step 4: Installing.jsx
+    └── IPC: run-install (provider, model, apiKey)
+    └── main.js copies openclaw-install.sh → /tmp/octoclaw-install.sh
+    └── spawns /bin/bash [tmpScript] with buildEnv() + credentials
+    └── 9-step bash script runs:
+          1. check/install openclaw CLI
+          2. create ~/.openclaw/ dirs
+          3. write ~/.openclaw/.env (API key, gateway token)
+          4. generate gateway token
+          5. write ~/.openclaw/openclaw.json (model, port 18789, loopback, token auth)
+          6. openclaw gateway install  ← registers LaunchAgent
+          7. write auth-profiles.json (3 locations)
+               CRITICAL: must be AFTER gateway install (install wipes it)
+          8. openclaw gateway start
+          9. verify
+    └── stdout lines streamed → install-log events → progress UI
+    └── install-done event → success or fail
+    └── on success → jump to Dashboard, resizeWindow(1100×720)
 
----
+  ---
+  4. Dashboard Shell — Dashboard.jsx
 
-## Complete Flow
+  Dashboard renders
+    └── Sidebar: Chat | Connect Apps | Skills | Balance
+    └── Default tab: Chat
+    └── Each tab is a separate component mounted on selection
 
-### App Startup
+  ---
+  5. Chat Tab — Chat.jsx
 
-Every time the app opens, before rendering anything, `App.jsx` calls `checkInstalled()` via IPC. The main process checks whether `~/.openclaw/openclaw.json` and `~/.openclaw/.env` exist.
+  Chat mounts
+    └── Phase: 'init'
+          └── readGatewayToken() IPC
+                └── reads OPENCLAW_GATEWAY_TOKEN from ~/.openclaw/.env
+                ├── null → phase='failed', error card
+                └── token found →
+                      setChatUrl(http://127.0.0.1:18789/?token=<tok>)
+                      setPhase('ready') → WebView renders IMMEDIATELY
+                      overlay "Connecting…" shown on top
 
-- **Not found** → wizard starts at the Welcome screen
-- **Found** → skip wizard entirely, resize window to 1100×720, go straight to Dashboard
+    [background, non-blocking]
+    └── probeGateway() — 300ms timeout to 127.0.0.1:18789
+          ├── alive → wait for WebView did-finish-load → overlay clears
+          └── dead → overlay "Starting gateway…"
+                └── ensureGateway() IPC
+                      └── _ensureGateway() in main.js:
+                            1. probe (800ms)
+                            2. if alive → repairAuthProfiles, return
+                            3. poll 5×800ms
+                            4. if alive → return
+                            5. gateway stop → sleep 2s → gateway start (detached)
+                            6. poll 15×600ms → if alive → return
+                            7. if still dead → stop → install LaunchAgent
+                               → repairAuthProfiles → start → poll 15×800ms
+                      ├── success → webview.reload()
+                      │     └── did-finish-load → overlay clears
+                      └── fail → phase='failed', error card + Retry
 
----
+    [on every did-finish-load]
+    └── executeJavaScript() injects token:
+          └── sets localStorage keys (4 variants)
+          └── finds token input fields → fills via React setter trick
+          └── dispatches input + change events
+          └── clicks "Connect" button if found (300ms delay)
 
-### First Launch — Wizard (800×620 window)
+    [gateway-stage IPC events during ensureGateway]
+    └── emitted by main.js → overlay message updates live
 
-Progress bar advances through 4 steps:
+  ---
+  6. Connect Apps Tab — ConnectApps.jsx
 
-**Step 1 — Welcome**
-Landing screen with a brief intro. User clicks Continue.
+  ConnectApps mounts
+    └── readConfig() IPC → reads openclaw.json
+    └── shows Telegram connection card
 
-**Step 2 — Provider & Model**
-User picks an AI provider (OpenAI, Anthropic, Google, Mistral, Groq, Cohere, Together, OpenRouter, Ollama) and selects a model. Selection is stored in React state.
+  User connects Telegram:
+    └── enters bot token
+    └── saveTelegramConfig({ botToken }) IPC
+          └── reads openclaw.json
+          └── sets config.channels.telegram = {
+                botToken, dmPolicy: 'open', allowFrom: ['*']
+              }
+          └── writes openclaw.json
+          └── openclaw gateway restart (6s timeout)
+          └── repairAuthProfiles()
+          └── return { success }
 
-**Step 3 — API Key**
-User pastes their API key. Skipped entirely for Ollama since no key is needed.
+  ---
+  7. Skills Tab — Skills.jsx
 
-**Step 4 — Installing**
-User clicks Install. `Installing.jsx` calls `window.electronAPI.runInstall({ provider, model, apiKey })` which sends an IPC message to the main process.
+  Skills mounts
+    └── readIntegrationSkills() IPC
+          └── reads ~/.openclaw/openclaw.json → get workspace path
+          └── scans 4 directories in precedence order:
+                1. <workspace>/skills/
+                2. <workspace>/.agents/skills/
+                3. ~/.agents/skills/
+                4. ~/.openclaw/skills/
+          └── for each subfolder: check SKILL.md OR _meta.json
+          └── returns { [folderName]: true, ... }
+    └── INTEGRATION_SKILLS array defines 3 integrations:
+          Binance (12 modules) | CoinGecko (18 modules) | OKX (13 modules)
+    └── each card shows: connected count, CONNECT/MANAGE button
 
-The main process:
-1. Resolves the script path — `assets/openclaw-install.sh` in dev, `resourcesPath/openclaw-install.sh` in production
-2. Copies the script to `/tmp/octoclaw-install.sh` (avoids read-only DMG filesystem errors)
-3. Makes it executable with `chmod 755`
-4. Builds a rich `PATH` environment — includes Homebrew, NVM (all installed versions scanned), npm global, and the existing `process.env.PATH` — so the `openclaw` binary is always found regardless of install method
-5. Spawns `/bin/bash /tmp/octoclaw-install.sh` with `OPENCLAW_API_KEY`, `OPENCLAW_PROVIDER`, `OPENCLAW_MODEL` in env
-6. Streams every stdout/stderr line back to the renderer via `install-log` IPC events
-7. On exit code 0, sends `install-done { success: true }`
+  User connects an integration:
+    └── fills API credentials
+    └── selects skill modules (chips toggle on/off)
+    └── clicks Connect
+          └── installIntegrationSkill({ modules, envVars }) IPC
+                └── reads workspace path from openclaw.json
+                └── for each module:
+                      reads assets/skills/<provider>/<module>.md (bundled)
+                      writes <workspace>/skills/<skillFolder>/SKILL.md
+                      writes <workspace>/skills/<skillFolder>/_meta.json
+                └── upserts TOOLS.md (credentials for LLM context)
+                └── upserts ~/.openclaw/.env (credentials for skill execution)
+                └── gateway restart (8s timeout)
+                └── repairAuthProfiles()
+                └── return { success }
 
-**What the bash script does (9 steps):**
+    [gateway watcher hot-reloads SKILL.md changes]
+    [.env changes need restart — handled above]
+    [new agent sessions immediately see updated skills]
 
-```
-Preflight     → validate API key is set (skip for Ollama)
-Step 1        → check if openclaw CLI exists
-                if not: curl openclaw.ai/install.sh | bash --no-onboard
-                         or: npm install -g openclaw (fallback)
-PATH fix      → append openclaw bin to ~/.zshrc / ~/.bash_profile (idempotent)
-Step 2        → mkdir ~/.openclaw/workspace
-                mkdir ~/.openclaw/agents/main/agent
-Step 3        → write ~/.openclaw/.env with OPENCLAW_API_KEY, chmod 600
-Step 4        → generate 256-bit gateway token via openssl rand -hex 32
-                append OPENCLAW_GATEWAY_TOKEN to .env
-Step 5        → write ~/.openclaw/openclaw.json
-                (model, gateway port 18789, loopback bind, token auth)
-Step 6        → openclaw gateway install
-                registers as LaunchAgent (macOS) / systemd (Linux)
-Step 7        → write auth-profiles.json to 3 locations
-                MUST be after gateway install (install can wipe the file)
-                MUST be before gateway start (gateway reads auth on startup)
-                Locations: ~/.openclaw/auth-profiles.json
-                           ~/.openclaw/agents/main/auth-profiles.json
-                           ~/.openclaw/agents/main/agent/auth-profiles.json
-Step 8        → openclaw gateway stop → sleep 1 → openclaw gateway start
-                clean restart so gateway reads the fresh auth file
-                sleep 3 to let it come up
-Step 9        → openclaw gateway status (verify running)
-                openclaw doctor (verify config, warn only)
-```
+  ---
+  8. Auth Repair — repairAuthProfiles()
 
-On success, `Installing.jsx` receives `install-done { success: true }`, the window resizes to 1100×720, and the app transitions to the Dashboard.
+  Called after every gateway install or restart
+    └── reads ~/.openclaw/.env → extracts OPENCLAW_API_KEY
+    └── reads openclaw.json → extracts provider
+    └── builds auth store:
+          non-ollama: { version:1, profiles: { "<provider>-default":
+                          { type:"api_key", provider, key } } }
+          ollama:     { version:1, profiles: { "ollama-default":
+                          { type:"token", provider:"ollama", token:"ollama" } } }
+    └── writes to 3 locations (chmod 600 each):
+          ~/.openclaw/auth-profiles.json
+          ~/.openclaw/agents/main/auth-profiles.json
+          ~/.openclaw/agents/main/agent/auth-profiles.json
+    └── also sets ~/.openclaw/ → 700, openclaw.json → 600
 
-On failure, the user is sent back to the API Key step to retry.
+  ---
+  9. IPC Bridge — preload.js → main.js
 
----
+  All React ↔ Electron communication via contextBridge (window.electronAPI):
 
-### Subsequent Launches — Direct to Dashboard
+    runInstall()              → run-install (event)
+    onLog() / onDone()        → install-log / install-done (events)
+    checkInstalled()          → check-installed (invoke)
+    resizeWindow()            → resize-window (event)
+    readGatewayToken()        → read-gateway-token (invoke)
+    probeGateway()            → probe-gateway (invoke) ← 300ms probe
+    ensureGateway()           → ensure-gateway (invoke)
+    onGatewayStage()          → gateway-stage (push event from main)
+    readConfig()              → read-config (invoke)
+    saveTelegramConfig()      → save-telegram-config (invoke)
+    saveSkillsConfig()        → save-skills-config (invoke)
+    installIntegrationSkill() → install-integration-skill (invoke)
+    readIntegrationSkills()   → read-integration-skills (invoke)
+    openUrl()                 → open-url (event → shell.openExternal)
+    getAppVersion()           → get-app-version (invoke)
 
-`checkInstalled()` finds the config files, reads `agents.defaults.model.primary` from `openclaw.json` (format: `"openai/gpt-4o"`), parses out provider and model, restores them into state, and jumps to the Dashboard. The wizard is never shown.
+  ---
+  10. Config Files on Disk
 
----
-
-### Dashboard
-
-A sidebar + content layout with four tabs.
-
-**Chat**
-
-When the Chat tab mounts, it goes through a startup sequence:
-
-```
-1. readGatewayToken() — reads OPENCLAW_GATEWAY_TOKEN from ~/.openclaw/.env
-
-2. ensureGateway():
-   a. Probe http://127.0.0.1:18789 — already up? return immediately
-   b. Not up → spawn: openclaw gateway start (detached)
-      wait 1.5s for daemon to register
-   c. Poll every 600ms up to 5 attempts (3s)
-      → up? done
-   d. Still not up → gateway service probably not installed
-      → openclaw gateway install
-      → repairAuthProfiles() — rewrites auth-profiles.json immediately
-        (gateway install can wipe the auth file)
-      → openclaw gateway start (detached)
-      → poll every 800ms up to 15 attempts (12s)
-   e. Binary not found (ENOENT) → return { error: 'BINARY_NOT_FOUND' } immediately
-
-3. Set chatUrl = http://127.0.0.1:18789/?token=<token>
-
-4. Render <webview src={chatUrl}>
-
-5. On did-finish-load → executeJavaScript to inject token:
-   - writes token to localStorage under 4 possible key names
-   - finds any input with "token" or "gateway" in placeholder/id/name
-   - sets its value using the native React setter (so React state updates)
-   - dispatches input + change events
-   - after 300ms, clicks the Connect button
-```
-
-The Chat tab shows a spinner with status text during steps 1–2, renders the webview once ready, and shows an error + Retry button if the gateway fails to start.
-
-**Connect Apps**
-
-User expands the Telegram card, pastes a bot token from `@BotFather`, and clicks Save. The token is written into `integrations.telegram` in `~/.openclaw/openclaw.json` via IPC.
-
-**Skills**
-
-Six agent capability toggles (web search, shell, file manager, code runner, browser automation, long-term memory). Preferences are saved to `~/.openclaw/octoclaw-prefs.json` — not to `openclaw.json`, because openclaw rejects unknown skill keys.
-
-**Balance**
-
-Coming soon placeholder.
-
----
-
-### Reset
-
-The RESET button in the sidebar footer sends the user back to the Welcome step. Config files on disk are not deleted — re-running the wizard will overwrite them.
+  ~/.openclaw/
+    ├── openclaw.json        ← model, gateway port/token/loopback, workspace path
+    ├── .env                 ← OPENCLAW_API_KEY, OPENCLAW_GATEWAY_TOKEN, provider keys
+    ├── auth-profiles.json   ← AI provider auth (written by repairAuthProfiles)
+    ├── octoclaw-prefs.json  ← UI-only skill preferences (not openclaw.json — rejected)
+    └── workspace/
+          ├── TOOLS.md       ← credentials doc for LLM context (auto-read by agent)
+          └── skills/
+                └── <skillFolder>/
+                      ├── SKILL.md    ← skill definition (hot-reloaded by watcher)
+                      └── _meta.json  ← our install marker (slug, version, installedAt)

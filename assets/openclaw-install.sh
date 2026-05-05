@@ -6,6 +6,8 @@ API_KEY="${OPENCLAW_API_KEY:-}"
 MODEL="${OPENCLAW_MODEL:-openai/gpt-4o}"
 PROVIDER="${OPENCLAW_PROVIDER:-openai}"
 
+OPENCLAW_VERSION="${OPENCLAW_VERSION:-2026.4.1}"
+
 OPENCLAW_HOME="$HOME/.openclaw"
 CONFIG_FILE="$OPENCLAW_HOME/openclaw.json"
 ENV_FILE="$OPENCLAW_HOME/.env"
@@ -40,7 +42,14 @@ info "Checking OpenClaw installation..."
 
 if command -v openclaw &>/dev/null; then
   OC_VER=$(openclaw --version 2>/dev/null | head -1 || echo "unknown")
-  success "Already installed → $OC_VER"
+  if [[ "$OC_VER" == *"$OPENCLAW_VERSION"* ]]; then
+    success "Already installed → $OC_VER (pinned $OPENCLAW_VERSION)"
+  else
+    warn "Installed version ($OC_VER) differs from pinned $OPENCLAW_VERSION — reinstalling..."
+    npm install -g "openclaw@$OPENCLAW_VERSION" 2>/dev/null || \
+      SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g "openclaw@$OPENCLAW_VERSION"
+    success "Pinned → $(openclaw --version 2>/dev/null | head -1)"
+  fi
 else
   info "Not found. Installing..."
   INSTALLED=false
@@ -132,7 +141,7 @@ else
   # If it fails for any reason (no node, EACCES, network) we fall through.
   if command -v curl &>/dev/null; then
     info "Trying official installer via curl..."
-    if curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard; then
+    if curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard --version "$OPENCLAW_VERSION"; then
       INSTALLED=true
       info "Official installer complete."
     else
@@ -146,7 +155,7 @@ else
   if [ "$INSTALLED" = false ]; then
     if ensure_npm; then
       info "Installing openclaw via npm..."
-      SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g openclaw@latest
+      SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g "openclaw@$OPENCLAW_VERSION"
       INSTALLED=true
     else
       error "Could not set up Node.js. Install v22+ from https://nodejs.org and retry."

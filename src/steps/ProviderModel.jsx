@@ -89,22 +89,6 @@ function LogoOllama() {
 
 const PROVIDERS = [
   {
-    id: 'openai',
-    label: 'OpenAI',
-    color: '#10A37F',
-    Logo: LogoOpenAI,
-    desc: 'GPT-4o & family',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1-preview', 'o1-mini', 'gpt-3.5-turbo'],
-    modelLabels: {
-      'gpt-4o': 'GPT-4o',
-      'gpt-4o-mini': 'GPT-4o mini',
-      'gpt-4-turbo': 'GPT-4 Turbo',
-      'o1-preview': 'o1 Preview',
-      'o1-mini': 'o1 mini',
-      'gpt-3.5-turbo': 'GPT-3.5 Turbo',
-    },
-  },
-  {
     id: 'anthropic',
     label: 'Anthropic',
     color: '#D97757',
@@ -125,6 +109,22 @@ const PROVIDERS = [
       'claude-3-5-sonnet-20241022': 'Claude 3.5 Sonnet',
       'claude-3-opus-20240229': 'Claude 3 Opus',
       'claude-3-haiku-20240307': 'Claude 3 Haiku',
+    },
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    color: '#10A37F',
+    Logo: LogoOpenAI,
+    desc: 'GPT-4o & family',
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1-preview', 'o1-mini', 'gpt-3.5-turbo'],
+    modelLabels: {
+      'gpt-4o': 'GPT-4o',
+      'gpt-4o-mini': 'GPT-4o mini',
+      'gpt-4-turbo': 'GPT-4 Turbo',
+      'o1-preview': 'o1 Preview',
+      'o1-mini': 'o1 mini',
+      'gpt-3.5-turbo': 'GPT-3.5 Turbo',
     },
   },
   {

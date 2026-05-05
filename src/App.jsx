@@ -9,7 +9,7 @@ const NO_KEY_PROVIDERS = ['ollama']
 
 export default function App() {
   const [step, setStep] = useState('welcome')
-  const [config, setConfig] = useState({ provider: 'openai', model: 'gpt-4o', apiKey: '' })
+  const [config, setConfig] = useState({ provider: 'anthropic', model: 'claude-sonnet-4-6', apiKey: '' })
   const [checking, setChecking] = useState(true)
 
   // On launch: check if already installed → skip wizard and go straight to dashboard

@@ -264,6 +264,12 @@ function emitGatewayStage(msg) {
   if (win && !win.isDestroyed()) win.webContents.send('gateway-stage', msg)
 }
 
+// Notifies Chat that the gateway is restarting (show loader) or ready (hide loader).
+function emitGatewayRestart(state, msg) {
+  const [win] = BrowserWindow.getAllWindows()
+  if (win && !win.isDestroyed()) win.webContents.send('gateway-restart', { state, msg })
+}
+
 async function _ensureGateway() {
   emitGatewayStage('Checking gateway…')
   if (await probeGateway()) {
@@ -318,6 +324,15 @@ async function _ensureGateway() {
   return { success: await pollGateway(15, 800) }
 }
 
+// Single 300ms probe — used by Chat for optimistic render (non-blocking)
+ipcMain.handle('probe-gateway', () => {
+  return new Promise((resolve) => {
+    const req = http.get({ hostname: '127.0.0.1', port: 18789, path: '/', timeout: 300 }, () => resolve(true))
+    req.on('error', () => resolve(false))
+    req.on('timeout', () => { req.destroy(); resolve(false) })
+  })
+})
+
 ipcMain.handle('read-gateway-token', async () => {
   try {
     const content = fs.readFileSync(path.join(os.homedir(), '.openclaw', '.env'), 'utf8')
@@ -342,6 +357,7 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
     config.channels.telegram = { botToken, dmPolicy: 'open', allowFrom: ['*'] }
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 
+    emitGatewayRestart('restarting', 'Applying Telegram config…')
     const env = buildEnv()
     await new Promise((resolve) => {
       const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
@@ -350,8 +366,33 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
       setTimeout(resolve, 6000)
     })
     repairAuthProfiles()
+    await pollGateway(10, 500)
+    emitGatewayRestart('ready')
     return { success: true }
-  } catch (err) { return { success: false, error: err.message } }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
+})
+
+// Removes channels.telegram from openclaw.json and restarts gateway.
+ipcMain.handle('reset-telegram-config', async () => {
+  try {
+    const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
+    let config = {}
+    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
+    if (config.channels) delete config.channels.telegram
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+    emitGatewayRestart('restarting', 'Removing Telegram config…')
+    const env = buildEnv()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      child.on('close', resolve)
+      child.on('error', resolve)
+      setTimeout(resolve, 6000)
+    })
+    repairAuthProfiles()
+    await pollGateway(10, 500)
+    emitGatewayRestart('ready')
+    return { success: true }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
 })
 
 // Skills UI prefs stored separately — openclaw.json rejects unknown keys and
@@ -370,7 +411,8 @@ ipcMain.handle('save-skills-config', async (_, skills) => {
 // Reads bundled SKILL.md files from app.asar (app.getAppPath() works in dev + prod).
 // Writes each skill as a folder into <workspace>/skills/<skillFolder>/.
 // Also upserts .env and writes credentials to TOOLS.md so agent reads them automatically.
-// No gateway restart — avoids breaking active Telegram polling session.
+// Restarts gateway via `gateway restart` so new .env credentials take effect.
+// Skills themselves are hot-reloaded by the watcher; restart is for env vars only.
 ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
   try {
     const home = os.homedir()
@@ -426,6 +468,11 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
       toolsContent = upsertSection(toolsContent, '## OKX Account', section)
     }
 
+    if (envVars.ETH_SKILLS) {
+      const section = `## ETH Skills\n\n- Access: https://ethskills.com\n- Fetch any topic: curl -s https://ethskills.com/<topic>/SKILL.md\n- Installed topics: ship, protocol, gas, wallets, l2s, standards, tools, building-blocks, security, addresses, testing, indexing, frontend-ux, frontend-playbook, orchestration, concepts, why, qa, audit\n- Requires: curl\n`
+      toolsContent = upsertSection(toolsContent, '## ETH Skills', section)
+    }
+
     if (toolsContent.trim()) {
       fs.writeFileSync(toolsPath, toolsContent, 'utf8')
       fs.chmodSync(toolsPath, 0o600)
@@ -450,27 +497,155 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     fs.writeFileSync(envPath, envContent, 'utf8')
     fs.chmodSync(envPath, 0o600)
 
-    // Restart gateway so it loads the newly installed skills.
-    // exec tool pairing is pre-approved via tools.exec in openclaw.json so
-    // restarting is safe — pairing is config-level, not runtime session state.
-    // Ordering: stop → repairAuthProfiles → start (gateway reads auth on startup).
+    // Restart gateway so new .env credentials take effect.
+    // Skills themselves hot-reload via the watcher; restart is only needed for env vars.
+    emitGatewayRestart('restarting', 'Activating skills…')
     const env = buildEnv()
-    const run = (args) => new Promise((resolve) => {
-      const child = spawn('openclaw', args, { env, shell: false, stdio: 'ignore' })
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      child.on('close', resolve)
+      child.on('error', resolve)
+      setTimeout(resolve, 8000)
+    })
+    repairAuthProfiles()
+    await pollGateway(10, 500)
+    emitGatewayRestart('ready')
+
+    return { success: true }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
+})
+
+// Scans all gateway skill directories (same precedence order as openclaw gateway).
+// Detects skills installed by our app (_meta.json) and by CLI/ClawHub (SKILL.md only).
+ipcMain.handle('reset-integration-skill', async (_, { envVarKeys, toolsHeading, skillFolders }) => {
+  try {
+    const home = os.homedir()
+    let workspace = path.join(home, '.openclaw', 'workspace')
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
+      workspace = cfg?.agents?.defaults?.workspace || workspace
+    } catch {}
+
+    // Remove skill folders
+    const skillsDir = path.join(workspace, 'skills')
+    for (const folder of skillFolders) {
+      try { fs.rmSync(path.join(skillsDir, folder), { recursive: true, force: true }) } catch {}
+    }
+
+    // Remove section from TOOLS.md
+    const toolsPath = path.join(workspace, 'TOOLS.md')
+    try {
+      let content = fs.readFileSync(toolsPath, 'utf8')
+      const escaped = toolsHeading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      content = content.replace(new RegExp(`${escaped}[\\s\\S]*?(?=\\n## |\\n*$)`), '').trimEnd()
+      if (content.trim()) {
+        fs.writeFileSync(toolsPath, content + '\n', 'utf8')
+      } else {
+        try { fs.unlinkSync(toolsPath) } catch {}
+      }
+    } catch {}
+
+    // Remove env vars from .env
+    const envPath = path.join(home, '.openclaw', '.env')
+    try {
+      let envContent = fs.readFileSync(envPath, 'utf8')
+      for (const key of envVarKeys) {
+        envContent = envContent.replace(new RegExp(`^${key}=.*\\n?`, 'm'), '')
+      }
+      fs.writeFileSync(envPath, envContent.trimEnd() + '\n', 'utf8')
+    } catch {}
+
+    // Restart gateway so env changes take effect
+    emitGatewayRestart('restarting', 'Removing integration…')
+    const env = buildEnv()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
       setTimeout(resolve, 6000)
     })
-    await run(['gateway', 'stop'])
-    await new Promise((r) => setTimeout(r, 2000))
     repairAuthProfiles()
-    await run(['gateway', 'start'])
-
+    await pollGateway(10, 500)
+    emitGatewayRestart('ready')
     return { success: true }
-  } catch (err) { return { success: false, error: err.message } }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
 })
 
-// Reads workspace/skills/ — checks for _meta.json to confirm each skill is installed
+// Full factory reset: wipes telegram config, all integration keys (TOOLS.md + .env),
+// all integration skill folders, then restarts gateway.
+ipcMain.handle('factory-reset', async () => {
+  try {
+    const home = os.homedir()
+
+    // Remove telegram from openclaw.json
+    const configPath = path.join(home, '.openclaw', 'openclaw.json')
+    try {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      if (config.channels) delete config.channels.telegram
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+    } catch {}
+
+    // Resolve workspace
+    let workspace = path.join(home, '.openclaw', 'workspace')
+    try {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      workspace = cfg?.agents?.defaults?.workspace || workspace
+    } catch {}
+
+    // Remove all integration skill folders (binance-*, coingecko-*, okx-*)
+    const skillsDir = path.join(workspace, 'skills')
+    const integrationPrefixes = ['binance-', 'coingecko-', 'okx-']
+    try {
+      for (const entry of fs.readdirSync(skillsDir)) {
+        if (integrationPrefixes.some((p) => entry.startsWith(p))) {
+          try { fs.rmSync(path.join(skillsDir, entry), { recursive: true, force: true }) } catch {}
+        }
+      }
+    } catch {}
+
+    // Wipe TOOLS.md entirely
+    const toolsPath = path.join(workspace, 'TOOLS.md')
+    try { fs.unlinkSync(toolsPath) } catch {}
+
+    // Remove all integration env vars from .env
+    const allIntegrationKeys = [
+      'BINANCE_API_KEY', 'BINANCE_API_SECRET',
+      'COINGECKO_API_KEY',
+      'OKX_API_KEY', 'OKX_SECRET_KEY', 'OKX_PASSPHRASE',
+    ]
+    const envPath = path.join(home, '.openclaw', '.env')
+    try {
+      let envContent = fs.readFileSync(envPath, 'utf8')
+      for (const key of allIntegrationKeys) {
+        envContent = envContent.replace(new RegExp(`^${key}=.*\\n?`, 'm'), '')
+      }
+      fs.writeFileSync(envPath, envContent.trimEnd() + '\n', 'utf8')
+    } catch {}
+
+    // Clear chat sessions
+    const sessionsDir = path.join(home, '.openclaw', 'agents', 'main', 'sessions')
+    try {
+      for (const entry of fs.readdirSync(sessionsDir)) {
+        try { fs.rmSync(path.join(sessionsDir, entry), { recursive: true, force: true }) } catch {}
+      }
+    } catch {}
+
+    // Restart gateway
+    emitGatewayRestart('restarting', 'Resetting…')
+    const env = buildEnv()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      child.on('close', resolve)
+      child.on('error', resolve)
+      setTimeout(resolve, 8000)
+    })
+    repairAuthProfiles()
+    await pollGateway(10, 500)
+    emitGatewayRestart('ready')
+    return { success: true }
+  } catch (err) { emitGatewayRestart('ready'); return { success: false, error: err.message } }
+})
+
 ipcMain.handle('read-integration-skills', async () => {
   try {
     const home = os.homedir()
@@ -480,12 +655,26 @@ ipcMain.handle('read-integration-skills', async () => {
       workspace = config?.agents?.defaults?.workspace || workspace
     } catch {}
 
-    const skillsDir = path.join(workspace, 'skills')
-    if (!fs.existsSync(skillsDir)) return {}
+    const scanDirs = [
+      path.join(workspace, 'skills'),
+      path.join(workspace, '.agents', 'skills'),
+      path.join(home, '.agents', 'skills'),
+      path.join(home, '.openclaw', 'skills'),
+    ]
 
     const installed = {}
-    for (const entry of fs.readdirSync(skillsDir)) {
-      if (fs.existsSync(path.join(skillsDir, entry, '_meta.json'))) installed[entry] = true
+    for (const dir of scanDirs) {
+      if (!fs.existsSync(dir)) continue
+      let entries
+      try { entries = fs.readdirSync(dir) } catch { continue }
+      for (const entry of entries) {
+        const entryPath = path.join(dir, entry)
+        try { if (!fs.statSync(entryPath).isDirectory()) continue } catch { continue }
+        if (fs.existsSync(path.join(entryPath, 'SKILL.md')) ||
+            fs.existsSync(path.join(entryPath, '_meta.json'))) {
+          installed[entry] = true
+        }
+      }
     }
     return installed
   } catch { return {} }

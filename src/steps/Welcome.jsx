@@ -78,7 +78,7 @@ export default function Welcome({ onNext }) {
         <div className="wv2-card wv2-card-teal">
           <div className="wv2-card-icon wv2-icon-teal"><IconLock /></div>
           <h3 className="wv2-card-title">Secure Local<br />Execution</h3>
-          <p className="wv2-card-desc">Private keys &amp; API credentials stay on your device — never exposed.</p>
+          <p className="wv2-card-desc">Private keys &amp; API credentials stay on your device never exposed.</p>
         </div>
         <div className="wv2-card wv2-card-blue">
           <div className="wv2-card-icon wv2-icon-blue"><IconBolt /></div>

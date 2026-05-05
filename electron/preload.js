@@ -16,12 +16,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readConfig: () => ipcRenderer.invoke('read-config'),
   checkInstalled: () => ipcRenderer.invoke('check-installed'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  probeGateway: () => ipcRenderer.invoke('probe-gateway'),
   ensureGateway: () => ipcRenderer.invoke('ensure-gateway'),
   onGatewayStage: (cb) => {
     const handler = (_, msg) => cb(msg)
     ipcRenderer.on('gateway-stage', handler)
     return () => ipcRenderer.removeListener('gateway-stage', handler)
   },
+  resetTelegramConfig: () => ipcRenderer.invoke('reset-telegram-config'),
   installIntegrationSkill: (data) => ipcRenderer.invoke('install-integration-skill', data),
   readIntegrationSkills: () => ipcRenderer.invoke('read-integration-skills'),
+  resetIntegrationSkill: (data) => ipcRenderer.invoke('reset-integration-skill', data),
+  factoryReset: () => ipcRenderer.invoke('factory-reset'),
+  onGatewayRestart: (cb) => {
+    const handler = (_, data) => cb(data)
+    ipcRenderer.on('gateway-restart', handler)
+    return () => ipcRenderer.removeListener('gateway-restart', handler)
+  },
 })
