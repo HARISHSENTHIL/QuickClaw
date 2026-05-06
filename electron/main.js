@@ -33,7 +33,7 @@ function resolveShellPath() {
       })
       const m = out.match(/\|P\|(.*?)\|P\|/s)
       if (m?.[1]?.trim()) return (_shellPath = m[1].trim())
-    } catch {}
+    } catch { }
   }
   return (_shellPath = '')
 }
@@ -55,7 +55,7 @@ function buildEnv(extra = {}) {
     try {
       fs.readdirSync(nvmDir).sort().reverse()
         .forEach((v) => knownBins.push(path.join(nvmDir, v, 'bin')))
-    } catch {}
+    } catch { }
   }
 
   const shellBins = resolveShellPath().split(':').filter(Boolean)
@@ -110,10 +110,10 @@ function setupAutoUpdater() {
     if (win && !win.isDestroyed()) win.webContents.send('update-downloaded', info)
   })
 
-  autoUpdater.on('error', () => {})
+  autoUpdater.on('error', () => { })
 
   // Check after a short delay so the window is fully loaded first
-  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000)
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => { }), 5000)
 }
 
 ipcMain.on('install-update', () => autoUpdater.quitAndInstall(false, true))
@@ -124,8 +124,6 @@ app.whenReady().then(() => {
   // (nvm, Homebrew, volta, asdf, etc.) — cached for the app's lifetime.
   resolveShellPath()
   createWindow()
-  // Register activate inside whenReady — prevents the race condition where
-  // activate fires before the app is ready (reproducible when running from DMG)
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   if (!isDev) setupAutoUpdater()
 })
@@ -165,7 +163,7 @@ ipcMain.on('run-install', (event, { provider, model, apiKey }) => {
   })
 
   // Kill after 8 minutes — prevents infinite hang if gateway commands block
-  const killTimer = setTimeout(() => { try { child.kill('SIGTERM') } catch {} }, 8 * 60 * 1000)
+  const killTimer = setTimeout(() => { try { child.kill('SIGTERM') } catch { } }, 8 * 60 * 1000)
 
   child.stdout.on('data', (data) => {
     data.toString().split('\n').forEach((line) => {
@@ -206,14 +204,14 @@ ipcMain.handle('check-installed', async () => {
   try {
     const home = os.homedir()
     const configPath = path.join(home, '.openclaw', 'openclaw.json')
-    const envPath    = path.join(home, '.openclaw', '.env')
+    const envPath = path.join(home, '.openclaw', '.env')
     if (!fs.existsSync(configPath) || !fs.existsSync(envPath)) return null
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-    const model  = config?.agents?.defaults?.model?.primary || 'openai/gpt-4o'
-    const slash  = model.indexOf('/')
+    const model = config?.agents?.defaults?.model?.primary || 'openai/gpt-4o'
+    const slash = model.indexOf('/')
     return {
       provider: slash > -1 ? model.slice(0, slash) : 'openai',
-      model:    slash > -1 ? model.slice(slash + 1) : model,
+      model: slash > -1 ? model.slice(slash + 1) : model,
     }
   } catch { return null }
 })
@@ -223,10 +221,10 @@ ipcMain.handle('check-installed', async () => {
 // Correct format: object (NOT array), type "api_key" (underscore), field "key" (NOT "apiKey")
 function repairAuthProfiles() {
   try {
-    const home    = os.homedir()
+    const home = os.homedir()
     const envText = fs.readFileSync(path.join(home, '.openclaw', '.env'), 'utf8')
-    const apiKey  = envText.match(/OPENCLAW_API_KEY=(.+)/)?.[1]?.trim()
-    const config  = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
+    const apiKey = envText.match(/OPENCLAW_API_KEY=(.+)/)?.[1]?.trim()
+    const config = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
     const provider = (config?.agents?.defaults?.model?.primary || 'openai/gpt-4o').split('/')[0]
 
     const authStore = provider === 'ollama'
@@ -239,8 +237,8 @@ function repairAuthProfiles() {
 
     // Ensure state dir and config have correct permissions every time we repair.
     // Default umask gives 755/644 — doctor flags those and gateway auth fails silently.
-    try { fs.chmodSync(path.join(home, '.openclaw'), 0o700) } catch {}
-    try { fs.chmodSync(path.join(home, '.openclaw', 'openclaw.json'), 0o600) } catch {}
+    try { fs.chmodSync(path.join(home, '.openclaw'), 0o700) } catch { }
+    try { fs.chmodSync(path.join(home, '.openclaw', 'openclaw.json'), 0o600) } catch { }
 
     for (const loc of [
       path.join(home, '.openclaw', 'auth-profiles.json'),
@@ -251,9 +249,9 @@ function repairAuthProfiles() {
         fs.mkdirSync(path.dirname(loc), { recursive: true })
         fs.writeFileSync(loc, JSON.stringify(authStore, null, 2))
         fs.chmodSync(loc, 0o600)
-      } catch {}
+      } catch { }
     }
-  } catch {}
+  } catch { }
 }
 
 // ── Gateway helpers ────────────────────────────────────────────────────────
@@ -327,6 +325,10 @@ async function _ensureGateway() {
   await run(['gateway', 'stop'])
   await new Promise((r) => setTimeout(r, 2000))
 
+  // Repair auth before starting — gateway reads auth-profiles.json at startup.
+  // Calling repairAuthProfiles after start is too late if the gateway only loads auth once.
+  repairAuthProfiles()
+
   emitGatewayStage('Starting gateway…')
   const startErr = await run(['gateway', 'start'], true)
   if (startErr?.code === 'ENOENT') return { success: false, error: 'BINARY_NOT_FOUND' }
@@ -378,7 +380,7 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
   try {
     const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
     let config = {}
-    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
+    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { }
     config.channels = config.channels || {}
     config.channels.telegram = { botToken, dmPolicy: 'open', allowFrom: ['*'] }
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
@@ -386,12 +388,18 @@ ipcMain.handle('save-telegram-config', async (_, { botToken }) => {
     emitGatewayRestart('restarting', 'Applying Telegram config…')
     const env = buildEnv()
     await new Promise((resolve) => {
-      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      const child = spawn('openclaw', ['gateway', 'stop'], { env, shell: false, stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
-      setTimeout(resolve, 6000)
+      setTimeout(resolve, 4000)
     })
+    // Repair auth BEFORE start — gateway reads auth-profiles.json at startup
     repairAuthProfiles()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'start'], { env, shell: false, stdio: 'ignore', detached: true })
+      child.unref()
+      setTimeout(resolve, 1500)
+    })
     await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
@@ -403,18 +411,23 @@ ipcMain.handle('reset-telegram-config', async () => {
   try {
     const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json')
     let config = {}
-    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch {}
+    try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { }
     if (config.channels) delete config.channels.telegram
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
     emitGatewayRestart('restarting', 'Removing Telegram config…')
     const env = buildEnv()
     await new Promise((resolve) => {
-      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      const child = spawn('openclaw', ['gateway', 'stop'], { env, shell: false, stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
-      setTimeout(resolve, 6000)
+      setTimeout(resolve, 4000)
     })
     repairAuthProfiles()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'start'], { env, shell: false, stdio: 'ignore', detached: true })
+      child.unref()
+      setTimeout(resolve, 1500)
+    })
     await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
@@ -427,7 +440,7 @@ ipcMain.handle('save-skills-config', async (_, skills) => {
   try {
     const prefsPath = path.join(os.homedir(), '.openclaw', 'octoclaw-prefs.json')
     let prefs = {}
-    try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')) } catch {}
+    try { prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8')) } catch { }
     prefs.skills = skills
     fs.writeFileSync(prefsPath, JSON.stringify(prefs, null, 2))
     return { success: true }
@@ -437,7 +450,7 @@ ipcMain.handle('save-skills-config', async (_, skills) => {
 // Reads bundled SKILL.md files from app.asar (app.getAppPath() works in dev + prod).
 // Writes each skill as a folder into <workspace>/skills/<skillFolder>/.
 // Also upserts .env and writes credentials to TOOLS.md so agent reads them automatically.
-// Restarts gateway via `gateway restart` so new .env credentials take effect.
+// Restarts gateway (stop → repairAuth → start) so new .env credentials take effect.
 // Skills themselves are hot-reloaded by the watcher; restart is for env vars only.
 ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
   try {
@@ -447,7 +460,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     try {
       const cfg = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
       workspace = cfg?.agents?.defaults?.workspace || workspace
-    } catch {}
+    } catch { }
 
     const skillsDir = path.join(workspace, 'skills')
     fs.mkdirSync(skillsDir, { recursive: true })
@@ -455,7 +468,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     const appRoot = app.getAppPath()
 
     for (const mod of modules) {
-      const content  = fs.readFileSync(path.join(appRoot, 'assets', 'skills', mod.assetFile), 'utf8')
+      const content = fs.readFileSync(path.join(appRoot, 'assets', 'skills', mod.assetFile), 'utf8')
       const skillDir = path.join(skillsDir, mod.skillFolder)
       fs.mkdirSync(skillDir, { recursive: true })
       fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content, 'utf8')
@@ -467,7 +480,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     // Write credentials to TOOLS.md — agents read this automatically on session start
     const toolsPath = path.join(workspace, 'TOOLS.md')
     let toolsContent = ''
-    try { toolsContent = fs.readFileSync(toolsPath, 'utf8') } catch {}
+    try { toolsContent = fs.readFileSync(toolsPath, 'utf8') } catch { }
 
     const upsertSection = (content, heading, section) => {
       const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -482,7 +495,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     }
 
     if ('COINGECKO_API_KEY' in envVars) {
-      const key  = envVars.COINGECKO_API_KEY
+      const key = envVars.COINGECKO_API_KEY
       const tier = !key ? 'Keyless' : key.startsWith('CG-') ? 'Pro' : 'Demo'
       const base = tier === 'Pro' ? 'https://pro-api.coingecko.com/api/v3' : 'https://api.coingecko.com/api/v3'
       const section = `## CoinGecko\n\n- API Key: ${key || 'none (keyless mode)'}\n- Tier: ${tier}\n- Base URL: ${base}\n`
@@ -510,7 +523,7 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     // Without this step the agent falls back to fetching data from the internet.
     const envPath = path.join(home, '.openclaw', '.env')
     let envContent = ''
-    try { envContent = fs.readFileSync(envPath, 'utf8') } catch {}
+    try { envContent = fs.readFileSync(envPath, 'utf8') } catch { }
     for (const [key, value] of Object.entries(envVars)) {
       if (!value) continue
       const re = new RegExp(`^${key}=.*$`, 'm')
@@ -523,17 +536,23 @@ ipcMain.handle('install-integration-skill', async (_, { modules, envVars }) => {
     fs.writeFileSync(envPath, envContent, 'utf8')
     fs.chmodSync(envPath, 0o600)
 
-    // Restart gateway so new .env credentials take effect.
+    // Stop → repairAuth → start so new .env credentials AND auth-profiles are loaded on startup.
     // Skills themselves hot-reload via the watcher; restart is only needed for env vars.
     emitGatewayRestart('restarting', 'Activating skills…')
     const env = buildEnv()
     await new Promise((resolve) => {
-      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      const child = spawn('openclaw', ['gateway', 'stop'], { env, shell: false, stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
-      setTimeout(resolve, 8000)
+      setTimeout(resolve, 4000)
     })
+    // Repair auth BEFORE start — gateway reads auth-profiles.json at startup
     repairAuthProfiles()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'start'], { env, shell: false, stdio: 'ignore', detached: true })
+      child.unref()
+      setTimeout(resolve, 1500)
+    })
     await pollGateway(10, 500)
     emitGatewayRestart('ready')
 
@@ -550,12 +569,12 @@ ipcMain.handle('reset-integration-skill', async (_, { envVarKeys, toolsHeading, 
     try {
       const cfg = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
       workspace = cfg?.agents?.defaults?.workspace || workspace
-    } catch {}
+    } catch { }
 
     // Remove skill folders
     const skillsDir = path.join(workspace, 'skills')
     for (const folder of skillFolders) {
-      try { fs.rmSync(path.join(skillsDir, folder), { recursive: true, force: true }) } catch {}
+      try { fs.rmSync(path.join(skillsDir, folder), { recursive: true, force: true }) } catch { }
     }
 
     // Remove section from TOOLS.md
@@ -567,9 +586,9 @@ ipcMain.handle('reset-integration-skill', async (_, { envVarKeys, toolsHeading, 
       if (content.trim()) {
         fs.writeFileSync(toolsPath, content + '\n', 'utf8')
       } else {
-        try { fs.unlinkSync(toolsPath) } catch {}
+        try { fs.unlinkSync(toolsPath) } catch { }
       }
-    } catch {}
+    } catch { }
 
     // Remove env vars from .env
     const envPath = path.join(home, '.openclaw', '.env')
@@ -579,18 +598,23 @@ ipcMain.handle('reset-integration-skill', async (_, { envVarKeys, toolsHeading, 
         envContent = envContent.replace(new RegExp(`^${key}=.*\\n?`, 'm'), '')
       }
       fs.writeFileSync(envPath, envContent.trimEnd() + '\n', 'utf8')
-    } catch {}
+    } catch { }
 
     // Restart gateway so env changes take effect
     emitGatewayRestart('restarting', 'Removing integration…')
     const env = buildEnv()
     await new Promise((resolve) => {
-      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      const child = spawn('openclaw', ['gateway', 'stop'], { env, shell: false, stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
-      setTimeout(resolve, 6000)
+      setTimeout(resolve, 4000)
     })
     repairAuthProfiles()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'start'], { env, shell: false, stdio: 'ignore', detached: true })
+      child.unref()
+      setTimeout(resolve, 1500)
+    })
     await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
@@ -609,14 +633,14 @@ ipcMain.handle('factory-reset', async () => {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
       if (config.channels) delete config.channels.telegram
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
-    } catch {}
+    } catch { }
 
     // Resolve workspace
     let workspace = path.join(home, '.openclaw', 'workspace')
     try {
       const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'))
       workspace = cfg?.agents?.defaults?.workspace || workspace
-    } catch {}
+    } catch { }
 
     // Remove all integration skill folders (binance-*, coingecko-*, okx-*)
     const skillsDir = path.join(workspace, 'skills')
@@ -624,14 +648,14 @@ ipcMain.handle('factory-reset', async () => {
     try {
       for (const entry of fs.readdirSync(skillsDir)) {
         if (integrationPrefixes.some((p) => entry.startsWith(p))) {
-          try { fs.rmSync(path.join(skillsDir, entry), { recursive: true, force: true }) } catch {}
+          try { fs.rmSync(path.join(skillsDir, entry), { recursive: true, force: true }) } catch { }
         }
       }
-    } catch {}
+    } catch { }
 
     // Wipe TOOLS.md entirely
     const toolsPath = path.join(workspace, 'TOOLS.md')
-    try { fs.unlinkSync(toolsPath) } catch {}
+    try { fs.unlinkSync(toolsPath) } catch { }
 
     // Remove all integration env vars from .env
     const allIntegrationKeys = [
@@ -646,26 +670,31 @@ ipcMain.handle('factory-reset', async () => {
         envContent = envContent.replace(new RegExp(`^${key}=.*\\n?`, 'm'), '')
       }
       fs.writeFileSync(envPath, envContent.trimEnd() + '\n', 'utf8')
-    } catch {}
+    } catch { }
 
     // Clear chat sessions
     const sessionsDir = path.join(home, '.openclaw', 'agents', 'main', 'sessions')
     try {
       for (const entry of fs.readdirSync(sessionsDir)) {
-        try { fs.rmSync(path.join(sessionsDir, entry), { recursive: true, force: true }) } catch {}
+        try { fs.rmSync(path.join(sessionsDir, entry), { recursive: true, force: true }) } catch { }
       }
-    } catch {}
+    } catch { }
 
     // Restart gateway
     emitGatewayRestart('restarting', 'Resetting…')
     const env = buildEnv()
     await new Promise((resolve) => {
-      const child = spawn('openclaw', ['gateway', 'restart'], { env, shell: false, stdio: 'ignore' })
+      const child = spawn('openclaw', ['gateway', 'stop'], { env, shell: false, stdio: 'ignore' })
       child.on('close', resolve)
       child.on('error', resolve)
-      setTimeout(resolve, 8000)
+      setTimeout(resolve, 4000)
     })
     repairAuthProfiles()
+    await new Promise((resolve) => {
+      const child = spawn('openclaw', ['gateway', 'start'], { env, shell: false, stdio: 'ignore', detached: true })
+      child.unref()
+      setTimeout(resolve, 1500)
+    })
     await pollGateway(10, 500)
     emitGatewayRestart('ready')
     return { success: true }
@@ -679,7 +708,7 @@ ipcMain.handle('read-integration-skills', async () => {
     try {
       const config = JSON.parse(fs.readFileSync(path.join(home, '.openclaw', 'openclaw.json'), 'utf8'))
       workspace = config?.agents?.defaults?.workspace || workspace
-    } catch {}
+    } catch { }
 
     const scanDirs = [
       path.join(workspace, 'skills'),
@@ -697,7 +726,7 @@ ipcMain.handle('read-integration-skills', async () => {
         const entryPath = path.join(dir, entry)
         try { if (!fs.statSync(entryPath).isDirectory()) continue } catch { continue }
         if (fs.existsSync(path.join(entryPath, 'SKILL.md')) ||
-            fs.existsSync(path.join(entryPath, '_meta.json'))) {
+          fs.existsSync(path.join(entryPath, '_meta.json'))) {
           installed[entry] = true
         }
       }

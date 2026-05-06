@@ -6,7 +6,7 @@ API_KEY="${OPENCLAW_API_KEY:-}"
 MODEL="${OPENCLAW_MODEL:-openai/gpt-4o}"
 PROVIDER="${OPENCLAW_PROVIDER:-openai}"
 
-OPENCLAW_VERSION="${OPENCLAW_VERSION:-2026.4.1}"
+OPENCLAW_VERSION="${OPENCLAW_VERSION:-2026.5.5}"
 
 OPENCLAW_HOME="$HOME/.openclaw"
 CONFIG_FILE="$OPENCLAW_HOME/openclaw.json"
@@ -42,13 +42,17 @@ info "Checking OpenClaw installation..."
 
 if command -v openclaw &>/dev/null; then
   OC_VER=$(openclaw --version 2>/dev/null | head -1 || echo "unknown")
-  if [[ "$OC_VER" == *"$OPENCLAW_VERSION"* ]]; then
-    success "Already installed → $OC_VER (pinned $OPENCLAW_VERSION)"
+  # Extract the year.minor portion (e.g. "2026.4.1" → 20264, "2026.5.5" → 20265)
+  # to detect installs older than 2026.5.x which have a confirmed grammy/Telegram bug.
+  OC_MINOR=$(echo "$OC_VER" | grep -oE '[0-9]{4}\.[0-9]+' | head -1 | tr -d '.')
+  MIN_MINOR=$(echo "2026.5" | tr -d '.')
+  if [ -n "$OC_MINOR" ] && [ "$OC_MINOR" -lt "$MIN_MINOR" ] 2>/dev/null; then
+    warn "Installed version ($OC_VER) is below 2026.5.x — upgrading to fix Telegram/grammy..."
+    SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g "openclaw@$OPENCLAW_VERSION" 2>/dev/null || \
+      npm install -g "openclaw@$OPENCLAW_VERSION"
+    success "Upgraded → $(openclaw --version 2>/dev/null | head -1)"
   else
-    warn "Installed version ($OC_VER) differs from pinned $OPENCLAW_VERSION — reinstalling..."
-    npm install -g "openclaw@$OPENCLAW_VERSION" 2>/dev/null || \
-      SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g "openclaw@$OPENCLAW_VERSION"
-    success "Pinned → $(openclaw --version 2>/dev/null | head -1)"
+    success "Already installed → $OC_VER"
   fi
 else
   info "Not found. Installing..."
