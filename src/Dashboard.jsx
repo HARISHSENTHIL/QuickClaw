@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import logoSrc from './assets/octoclaw-logo.webp?inline'
 import Chat from './dashboard/Chat'
 import ConnectApps from './dashboard/ConnectApps'
@@ -16,6 +16,14 @@ export default function Dashboard({ config, onReset }) {
   const [active, setActive] = useState('chat')
   const [confirmReset, setConfirmReset] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState(null)
+  const [updateReady, setUpdateReady] = useState(false)
+
+  useEffect(() => {
+    const offAvailable = window.electronAPI?.onUpdateAvailable?.((info) => setUpdateInfo(info))
+    const offDownloaded = window.electronAPI?.onUpdateDownloaded?.((info) => { setUpdateInfo(info); setUpdateReady(true) })
+    return () => { offAvailable?.(); offDownloaded?.() }
+  }, [])
 
   const handleReset = async () => {
     setResetting(true)
@@ -47,6 +55,19 @@ export default function Dashboard({ config, onReset }) {
             </button>
           ))}
         </nav>
+
+        {updateInfo && (
+          <div className="update-banner">
+            <span className="update-banner-text">
+              v{updateInfo.version} available{updateReady ? ' — ready' : ' — downloading…'}
+            </span>
+            {updateReady && (
+              <button className="update-banner-btn" onClick={() => window.electronAPI?.installUpdate()}>
+                RESTART
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="sidebar-footer">
           {confirmReset ? (
